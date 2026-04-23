@@ -7,6 +7,7 @@ import {
   Warrior,
 } from "./components/ArenaShell";
 import { WaitlistForm } from "./components/WaitlistForm";
+import Link from "next/link";
 
 const pillars = [
   ["⚖", "FAIR JUDGMENT", "One judge. One fate."],
@@ -32,6 +33,9 @@ export default function Home() {
           <p>JOIN THE ARENA</p>
           <strong>SIGN UP TODAY</strong>
           <WaitlistForm className="native-waitlist" />
+          <Link className="pilot-entry-link" href="/arena">
+            OPEN MVP PILOT
+          </Link>
         </div>
       </section>
 

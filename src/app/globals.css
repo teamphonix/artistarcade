@@ -571,6 +571,22 @@ button {
   color: #ff7979;
 }
 
+.pilot-entry-link {
+  border: 1px solid rgba(255, 219, 138, 0.58);
+  color: var(--gold-bright);
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 950;
+  justify-content: center;
+  letter-spacing: 0.14em;
+  margin-top: 0.65rem;
+  min-height: 2.7rem;
+  padding: 0.85rem 1rem 0.7rem;
+  text-decoration: none;
+  text-transform: uppercase;
+  width: min(35rem, 100%);
+}
+
 .portal-button {
   align-items: center;
   bottom: 21vh;
@@ -1040,6 +1056,262 @@ button {
   color: var(--muted);
 }
 
+.pilot-page {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(145, 59, 255, 0.18), transparent 28rem),
+    radial-gradient(circle at 82% 14%, rgba(228, 166, 52, 0.16), transparent 30rem),
+    linear-gradient(180deg, #050505 0%, #100d09 50%, #050403 100%);
+  color: var(--ink);
+  min-height: 100svh;
+  padding: clamp(1rem, 2vw, 2rem);
+}
+
+.pilot-hero,
+.pilot-metrics,
+.pilot-card,
+.pilot-panel {
+  border: 1px solid rgba(255, 205, 91, 0.28);
+  background: rgba(8, 7, 5, 0.78);
+  box-shadow: 0 0 28px rgba(0, 0, 0, 0.28);
+}
+
+.pilot-hero {
+  align-items: end;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr auto;
+  margin: 0 auto 1rem;
+  max-width: 84rem;
+  padding: clamp(1rem, 2vw, 1.6rem);
+  position: relative;
+}
+
+.pilot-back {
+  color: var(--gold-bright);
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  position: absolute;
+  right: 1rem;
+  text-decoration: none;
+  text-transform: uppercase;
+  top: 1rem;
+}
+
+.pilot-kicker,
+.pilot-step,
+.pilot-status span,
+.pilot-metrics span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.pilot-hero h1 {
+  color: var(--gold);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.4rem, 5vw, 5rem);
+  line-height: 0.95;
+  margin: 0.3rem 0;
+  text-transform: uppercase;
+}
+
+.pilot-hero p,
+.pilot-card p {
+  color: rgba(246, 230, 188, 0.78);
+  line-height: 1.55;
+  margin: 0;
+  max-width: 48rem;
+}
+
+.pilot-status {
+  border: 1px solid rgba(255, 205, 91, 0.22);
+  min-width: 10rem;
+  padding: 0.9rem;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.pilot-status strong {
+  color: var(--gold-bright);
+  display: block;
+  font-size: 1.2rem;
+  margin-bottom: 0.2rem;
+}
+
+.pilot-metrics {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0 auto 1rem;
+  max-width: 84rem;
+}
+
+.pilot-metrics article {
+  background: rgba(255, 255, 255, 0.025);
+  padding: 1rem;
+}
+
+.pilot-metrics strong {
+  color: var(--gold-bright);
+  display: block;
+  font-size: clamp(1.5rem, 2.7vw, 2.5rem);
+  margin-top: 0.2rem;
+}
+
+.pilot-message {
+  background: rgba(255, 205, 91, 0.12);
+  border: 1px solid rgba(255, 205, 91, 0.24);
+  color: var(--gold-bright);
+  margin: 0 auto 1rem;
+  max-width: 84rem;
+  padding: 0.85rem 1rem;
+}
+
+.pilot-grid,
+.pilot-columns {
+  display: grid;
+  gap: 1rem;
+  margin: 0 auto 1rem;
+  max-width: 84rem;
+}
+
+.pilot-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.pilot-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pilot-card,
+.pilot-panel {
+  padding: 1rem;
+}
+
+.pilot-card h2,
+.pilot-panel h2 {
+  color: var(--gold);
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+  margin: 0.35rem 0 1rem;
+  text-transform: uppercase;
+}
+
+.pilot-card label {
+  color: rgba(246, 230, 188, 0.76);
+  display: grid;
+  font-size: 0.78rem;
+  font-weight: 900;
+  gap: 0.35rem;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.7rem;
+  text-transform: uppercase;
+}
+
+.pilot-card input,
+.pilot-card select {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 205, 91, 0.28);
+  color: var(--ink);
+  min-height: 2.55rem;
+  outline: none;
+  padding: 0 0.75rem;
+}
+
+.pilot-card input:focus,
+.pilot-card select:focus {
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 18px rgba(255, 205, 91, 0.16);
+}
+
+.pilot-actions {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+.pilot-card button {
+  background: linear-gradient(180deg, #f0ce79, #9f641b 58%, #462404);
+  border: 1px solid rgba(255, 226, 154, 0.5);
+  color: #140c03;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  min-height: 2.8rem;
+  padding: 0 0.75rem;
+  text-transform: uppercase;
+}
+
+.pilot-card button + button {
+  margin-top: 0.65rem;
+}
+
+.pilot-actions button + button {
+  margin-top: 0;
+}
+
+.pilot-card button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+  opacity: 0.52;
+}
+
+.pilot-table {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.pilot-row {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.035);
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: 1.3fr 1fr 0.8fr 0.55fr;
+  min-height: 3rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.pilot-row strong {
+  color: var(--gold-bright);
+}
+
+.pilot-row span,
+.pilot-assignment span,
+.pilot-assignment em {
+  color: rgba(246, 230, 188, 0.74);
+  font-size: 0.82rem;
+}
+
+.pilot-panel-wide {
+  grid-column: 1 / -1;
+}
+
+.pilot-assignment-grid {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pilot-assignment {
+  background: rgba(255, 255, 255, 0.035);
+  border-left: 2px solid var(--gold);
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.75rem;
+}
+
+.pilot-assignment strong {
+  color: var(--gold-bright);
+}
+
+.pilot-assignment em {
+  color: var(--purple);
+  font-style: normal;
+  text-transform: uppercase;
+}
+
 @keyframes portalSpin {
   to {
     transform: rotate(360deg);
@@ -1115,6 +1387,14 @@ button {
 
   .native-scroll-panel {
     width: 72vw;
+  }
+
+  .pilot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pilot-assignment-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1230,5 +1510,26 @@ button {
 
   .challenge-tagline {
     margin: 1rem 0;
+  }
+
+  .pilot-page {
+    padding: 0.85rem;
+  }
+
+  .pilot-hero,
+  .pilot-metrics,
+  .pilot-grid,
+  .pilot-columns,
+  .pilot-assignment-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pilot-back {
+    position: static;
+  }
+
+  .pilot-row {
+    align-items: start;
+    grid-template-columns: 1fr;
   }
 }
