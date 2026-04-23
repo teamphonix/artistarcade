@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { PortalStage, ReturnToArena } from "../components/PortalStage";
+import {
+  ArenaBanner,
+  ArenaShell,
+  ArtistArcadeCrest,
+  ReturnToArena,
+  Warrior,
+} from "../components/ArenaShell";
 import { WaitlistForm } from "../components/WaitlistForm";
 
 const aboutScript = `Calling All Artists
@@ -68,8 +74,19 @@ export default function AboutPage() {
   const [showIntro, setShowIntro] = useState(false);
 
   return (
-    <PortalStage className="about-page" image="/brand-assets/landing-about.png" alt="The Artist Arcade about portal">
-      <section className="about-scroll-panel" aria-label="About The Artist Arcade">
+    <ArenaShell className="about-rebuild">
+      <ArenaBanner side="left" title="ARTIST A" subtitle="VICTORIOUS" />
+      <ArenaBanner side="right" title="ARTIST B" subtitle="WATCHING" />
+      <Warrior side="left" />
+      <Warrior side="right" />
+
+      <div className="fatekeeper-throne" aria-hidden="true">
+        <span className="throne-hood" />
+        <span className="throne-hands" />
+        <ArtistArcadeCrest compact />
+      </div>
+
+      <section className="native-scroll-panel" aria-label="About The Artist Arcade">
         {aboutScript.split("\n\n").map((paragraph) => (
           <p
             key={paragraph}
@@ -86,10 +103,14 @@ export default function AboutPage() {
         ))}
       </section>
 
-      <WaitlistForm className="about-waitlist" buttonLabel="BECOME A LEGEND" />
+      <section className="bottom-cta about-cta" aria-label="Join The Artist Arcade">
+        <span>JOIN THE ARENA</span>
+        <strong>BECOME A LEGEND</strong>
+        <WaitlistForm className="native-waitlist horizontal" />
+      </section>
 
-      <button className="watch-intro" type="button" onClick={() => setShowIntro(true)} aria-label="Watch intro">
-        <span aria-hidden="true">▶</span>
+      <button className="watch-intro-native" type="button" onClick={() => setShowIntro(true)}>
+        <span>▶</span>
         <strong>WATCH THE INTRO</strong>
       </button>
 
@@ -106,6 +127,6 @@ export default function AboutPage() {
           </div>
         </div>
       )}
-    </PortalStage>
+    </ArenaShell>
   );
 }

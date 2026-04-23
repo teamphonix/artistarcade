@@ -1,11 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #030201;
-  --foreground: #f7e7b4;
-  --gold: #d7a642;
-  --bright-gold: #ffd37a;
-  --purple: #a83cff;
+  --bg: #030201;
+  --ink: #f6e6bc;
+  --muted: #b8a37a;
+  --gold: #d5a33d;
+  --gold-bright: #ffe09a;
+  --gold-dark: #5d360b;
+  --purple: #9e36ff;
+  --purple-deep: #21052d;
+  --panel: rgba(8, 7, 5, 0.82);
 }
 
 * {
@@ -14,18 +18,21 @@
 
 html,
 body {
+  background: var(--bg);
   min-height: 100%;
-  background: var(--background);
 }
 
 body {
-  color: var(--foreground);
+  color: var(--ink);
   font-family: Arial, Helvetica, sans-serif;
   margin: 0;
   overflow-x: hidden;
 }
 
-a,
+a {
+  color: inherit;
+}
+
 button,
 input {
   font: inherit;
@@ -47,448 +54,993 @@ button {
   width: 1px;
 }
 
-.portal-page {
-  align-items: center;
-  background:
-    radial-gradient(circle at 50% 10%, rgba(215, 166, 66, 0.2), transparent 36%),
-    linear-gradient(180deg, #080501, #000);
-  display: flex;
-  justify-content: center;
+.arena-shell {
+  isolation: isolate;
   min-height: 100svh;
   overflow: hidden;
-  padding: 0;
-}
-
-.portal-stage {
-  aspect-ratio: 3 / 2;
-  background: #030201;
-  box-shadow: 0 0 80px rgba(215, 166, 66, 0.18);
-  max-height: 100svh;
-  overflow: hidden;
   position: relative;
-  width: min(100vw, 150svh);
-}
-
-.stage-art {
-  object-fit: contain;
-  pointer-events: none;
-  user-select: none;
-}
-
-.stage-vignette {
-  background:
-    radial-gradient(circle at 50% 50%, transparent 45%, rgba(0, 0, 0, 0.28) 100%),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.2), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.2));
-  inset: 0;
-  pointer-events: none;
-  position: absolute;
-}
-
-.waitlist-form {
-  position: absolute;
-  z-index: 5;
-}
-
-.waitlist-input,
-.waitlist-button {
-  border: 1px solid transparent;
-  color: #f8e6b3;
-  height: 100%;
-  letter-spacing: 0.12em;
-  outline: none;
-  text-transform: uppercase;
-  transition:
-    border-color 200ms ease,
-    box-shadow 200ms ease,
-    filter 200ms ease,
-    transform 200ms ease;
-}
-
-.waitlist-input {
-  background: rgba(7, 6, 4, 0.04);
-  border-radius: 0;
-  box-shadow: none;
-  font-size: clamp(0.45rem, 1vw, 0.95rem);
-  padding: 0 1rem;
   width: 100%;
 }
 
-.waitlist-input::placeholder {
-  color: transparent;
-}
-
-.waitlist-input:focus {
-  border-color: var(--bright-gold);
-  box-shadow:
-    inset 0 0 24px rgba(0, 0, 0, 0.42),
-    0 0 22px rgba(255, 196, 89, 0.36);
-}
-
-.waitlist-button {
-  background: transparent;
-  color: transparent;
-  font-size: clamp(0.48rem, 1.2vw, 1.05rem);
-  font-weight: 900;
-  text-shadow: none;
-}
-
-.waitlist-button:hover,
-.waitlist-button:focus-visible {
-  filter: brightness(1.15);
-  border-color: rgba(255, 211, 122, 0.42);
-  box-shadow: 0 0 28px rgba(255, 191, 73, 0.24);
-}
-
-.waitlist-button:active {
-  transform: translateY(1px) scale(0.99);
-}
-
-.waitlist-button:disabled {
-  cursor: wait;
-  opacity: 0.78;
-}
-
-.waitlist-status {
-  color: #ffd37a;
-  font-size: clamp(0.48rem, 0.85vw, 0.8rem);
-  font-weight: 700;
-  left: 0;
-  letter-spacing: 0.08em;
-  margin: 0;
+.arena-bg,
+.arena-bg::before,
+.arena-bg::after {
+  inset: 0;
   position: absolute;
-  text-shadow: 0 0 12px rgba(0, 0, 0, 0.9);
-  text-transform: uppercase;
-  top: calc(100% + 0.35rem);
 }
 
-.waitlist-status.is-error {
-  color: #ff7676;
+.arena-bg {
+  background:
+    radial-gradient(circle at 50% 86%, rgba(197, 136, 31, 0.28), transparent 36%),
+    radial-gradient(circle at 50% 20%, rgba(185, 124, 27, 0.2), transparent 38%),
+    linear-gradient(180deg, #040301 0%, #0d0904 45%, #020100 100%);
+  overflow: hidden;
+  z-index: -3;
 }
 
-.main-waitlist {
-  display: grid;
-  gap: 4.5%;
-  grid-template-rows: 38% 56%;
-  height: 11.6%;
-  left: 32.4%;
-  top: 63.35%;
-  width: 35.8%;
+.arena-bg::before {
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 201, 91, 0.08) 0 1px, transparent 1px 110px),
+    repeating-linear-gradient(0deg, transparent 0 72px, rgba(255, 201, 91, 0.035) 72px 73px),
+    radial-gradient(ellipse at 50% 58%, rgba(0, 0, 0, 0) 0 32%, rgba(0, 0, 0, 0.58) 72%);
+  content: "";
+  opacity: 0.9;
 }
 
-.main-waitlist .waitlist-button {
-  font-size: clamp(0.8rem, 1.9vw, 1.85rem);
+.arena-bg::after {
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.74), transparent 22%, transparent 78%, rgba(0, 0, 0, 0.74)),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.46));
+  content: "";
 }
 
-.about-waitlist {
-  display: grid;
-  grid-template-rows: 43% 52%;
-  height: 10.4%;
-  left: 29.3%;
-  top: 83.7%;
-  width: 29%;
+.spotlight {
+  background: linear-gradient(180deg, rgba(255, 226, 160, 0.62), transparent 72%);
+  clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%);
+  filter: blur(8px);
+  height: 70vh;
+  opacity: 0.62;
+  position: absolute;
+  top: 0;
+  width: 23vw;
 }
 
-.about-waitlist .waitlist-button {
-  order: -1;
+.spotlight-left {
+  animation: driftLeft 10s ease-in-out infinite alternate;
+  left: 12vw;
+  transform: rotate(14deg);
 }
 
-.challenges-waitlist {
-  display: grid;
-  gap: 3%;
-  grid-template-columns: 58% 39%;
-  height: 7.1%;
-  left: 20.8%;
-  top: 83.05%;
-  width: 58.6%;
+.spotlight-right {
+  animation: driftRight 11s ease-in-out infinite alternate;
+  right: 12vw;
+  transform: rotate(-14deg);
 }
 
-.portal-hotspot {
+.arena-ring {
+  border: 1px solid rgba(255, 198, 78, 0.18);
+  border-radius: 50%;
+  bottom: -25vh;
+  height: 62vh;
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%) rotateX(70deg);
+  width: 72vw;
+}
+
+.ring-two {
+  bottom: -15vh;
+  width: 50vw;
+}
+
+.dust {
+  animation: dustFloat 14s linear infinite;
+  background-image:
+    radial-gradient(circle, rgba(255, 207, 100, 0.42) 0 1px, transparent 1px),
+    radial-gradient(circle, rgba(155, 63, 255, 0.25) 0 1px, transparent 1px);
+  background-size: 90px 70px, 130px 100px;
+  inset: 0;
+  opacity: 0.36;
+  position: absolute;
+}
+
+.dust-two {
+  animation-duration: 22s;
+  opacity: 0.2;
+  transform: scale(1.2);
+}
+
+.aa-crest {
   align-items: center;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  filter: drop-shadow(0 0 18px rgba(255, 195, 77, 0.18));
+  letter-spacing: 0.08em;
+  position: relative;
+  text-align: center;
+  text-transform: uppercase;
+  width: min(17rem, 76vw);
+}
+
+.aa-crest::before {
+  background: linear-gradient(180deg, #f7d37a, #8b5516 54%, #281604);
+  border: 1px solid rgba(255, 226, 150, 0.72);
+  clip-path: polygon(12% 0, 88% 0, 100% 16%, 87% 26%, 82% 100%, 18% 100%, 13% 26%, 0 16%);
+  content: "";
+  inset: 0;
+  opacity: 0.95;
   position: absolute;
-  text-decoration: none;
-  z-index: 6;
+  z-index: -1;
 }
 
-.portal-ring {
-  animation: portalRotate 18s linear infinite, portalPulse 4.8s ease-in-out infinite;
-  border: 2px solid rgba(255, 211, 122, 0.7);
-  border-radius: 50%;
-  filter: drop-shadow(0 0 12px rgba(255, 193, 74, 0.45));
-  inset: 17%;
+.aa-crest .crest-top {
+  color: #1b1004;
+  font-size: clamp(0.6rem, 1vw, 0.85rem);
+  font-weight: 900;
+  margin-top: 0.35rem;
+}
+
+.aa-crest strong {
+  color: #100a03;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.25rem, 3.1vw, 2.8rem);
+  font-weight: 900;
+  line-height: 0.9;
+  text-shadow: 0 1px rgba(255, 244, 199, 0.5);
+}
+
+.crest-mark {
+  height: clamp(2.7rem, 6vw, 5.2rem);
+  margin: 0.2rem 0;
+  position: relative;
+  width: 44%;
+}
+
+.helmet {
+  background: linear-gradient(180deg, #171717, #3b3b37);
+  clip-path: polygon(50% 0, 78% 18%, 70% 78%, 50% 100%, 30% 78%, 22% 18%);
+  inset: 6% 29% 20%;
   position: absolute;
 }
 
-.portal-about .portal-ring {
-  border-color: rgba(194, 70, 255, 0.82);
-  filter: drop-shadow(0 0 14px rgba(176, 59, 255, 0.62));
+.cross {
+  background: #17140f;
+  border: 1px solid rgba(255, 220, 139, 0.45);
+  height: 88%;
+  left: 48%;
+  position: absolute;
+  top: 6%;
+  transform-origin: center;
+  width: 11%;
 }
 
-.portal-hotspot::before,
-.portal-hotspot::after {
+.cross-a {
+  transform: rotate(46deg);
+}
+
+.cross-b {
+  transform: rotate(-46deg);
+}
+
+.mic-dot {
+  background: radial-gradient(circle, #1a1711, #62543a);
   border-radius: 50%;
+  height: 21%;
+  left: 17%;
+  position: absolute;
+  top: 50%;
+  width: 21%;
+}
+
+.crest-law {
+  color: rgba(35, 21, 5, 0.72);
+  font-size: clamp(0.48rem, 0.9vw, 0.72rem);
+  font-weight: 900;
+  margin-bottom: 0.65rem;
+}
+
+.aa-crest.is-compact {
+  width: min(15rem, 56vw);
+}
+
+.arena-banner {
+  align-items: center;
+  border: 1px solid rgba(255, 206, 103, 0.4);
+  color: var(--gold);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1.5rem 0.9rem 2rem;
+  position: absolute;
+  text-align: center;
+  text-transform: uppercase;
+  top: 7vh;
+  width: clamp(5.4rem, 8vw, 7.6rem);
+  z-index: 3;
+}
+
+.arena-banner::after {
+  border-left: 3rem solid transparent;
+  border-right: 3rem solid transparent;
+  border-top: 1.2rem solid rgba(92, 55, 11, 0.82);
+  bottom: -1.15rem;
   content: "";
   position: absolute;
 }
 
-.portal-hotspot::before {
-  animation: portalPulse 5.5s ease-in-out infinite;
-  background: radial-gradient(circle, rgba(255, 209, 112, 0.18), transparent 62%);
-  inset: 7%;
-}
-
-.portal-about::before {
-  background: radial-gradient(circle, rgba(185, 48, 255, 0.22), transparent 62%);
-}
-
-.portal-hotspot::after {
-  animation: portalRotate 24s linear infinite reverse;
-  border: 1px dashed rgba(255, 234, 174, 0.38);
-  inset: 25%;
-}
-
-.portal-hotspot:hover .portal-ring,
-.portal-hotspot:focus-visible .portal-ring {
-  animation-duration: 9s, 2.8s;
-  filter: drop-shadow(0 0 24px rgba(255, 210, 98, 0.85));
-}
-
-.portal-hotspot:hover,
-.portal-hotspot:focus-visible {
-  outline: none;
-  transform: scale(1.03);
-}
-
-.portal-label {
-  background: rgba(0, 0, 0, 0.62);
-  border: 1px solid rgba(255, 211, 122, 0.4);
-  color: #ffd37a;
-  font-size: clamp(0.5rem, 1vw, 0.9rem);
+.arena-banner span {
+  border: 1px solid currentColor;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2rem;
   font-weight: 900;
-  letter-spacing: 0.2em;
-  opacity: 0;
-  padding: 0.45rem 0.65rem;
-  text-transform: uppercase;
-  transform: translateY(65%);
-  transition: opacity 180ms ease;
+  height: 3rem;
+  line-height: 2.8rem;
+  width: 3rem;
 }
 
-.portal-hotspot:focus-visible .portal-label,
-.portal-hotspot:hover .portal-label {
-  opacity: 1;
+.arena-banner strong {
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
 }
 
-.about-portal-position {
-  height: 23%;
-  left: 8.7%;
-  top: 63.8%;
-  width: 22%;
+.arena-banner em {
+  color: rgba(246, 230, 188, 0.7);
+  font-size: 0.7rem;
+  font-style: normal;
 }
 
-.challenges-portal-position {
-  height: 24%;
-  left: 74.5%;
-  top: 60.6%;
-  width: 17.5%;
+.banner-left {
+  left: 5vw;
 }
 
-.mobile-direct-links {
+.banner-right {
+  color: #b34cff;
+  right: 5vw;
+}
+
+.warrior {
+  bottom: 16vh;
+  height: min(45vh, 31vw);
+  position: absolute;
+  width: min(22vw, 18rem);
+  z-index: 2;
+}
+
+.warrior-left {
+  left: 7vw;
+}
+
+.warrior-right {
+  right: 7vw;
+}
+
+.warrior-hood,
+.warrior-body,
+.warrior-arm,
+.weapon {
+  background: linear-gradient(135deg, #050505, #171711 58%, #47310a);
+  border: 1px solid rgba(255, 203, 91, 0.22);
+  position: absolute;
+}
+
+.warrior-hood {
+  border-radius: 50% 50% 30% 30%;
+  height: 18%;
+  left: 36%;
+  top: 5%;
+  width: 28%;
+}
+
+.warrior-body {
+  clip-path: polygon(35% 0, 66% 0, 82% 100%, 15% 100%);
+  height: 58%;
+  left: 24%;
+  top: 22%;
+  width: 52%;
+}
+
+.warrior-arm {
+  height: 9%;
+  top: 34%;
+  width: 54%;
+}
+
+.arm-front {
+  left: 48%;
+  transform: rotate(-18deg);
+}
+
+.arm-back {
+  left: 4%;
+  transform: rotate(24deg);
+}
+
+.weapon {
+  border-radius: 999px;
+  height: 4%;
+  left: 48%;
+  top: 37%;
+  transform: rotate(-18deg);
+  width: 62%;
+}
+
+.warrior-right .arm-front,
+.warrior-right .weapon {
+  left: -8%;
+  transform: rotate(18deg);
+}
+
+.energy-ribbon {
+  background: linear-gradient(90deg, transparent, rgba(164, 49, 255, 0.8), rgba(255, 197, 72, 0.75), transparent);
+  filter: blur(1px) drop-shadow(0 0 14px rgba(175, 66, 255, 0.7));
+  height: 2.2rem;
+  left: 62%;
+  position: absolute;
+  top: 34%;
+  transform: rotate(6deg);
+  width: 48vw;
+  z-index: -1;
+}
+
+.warrior-right .energy-ribbon {
   display: none;
 }
 
-.about-scroll-panel {
-  background:
-    linear-gradient(180deg, rgba(5, 4, 3, 0.97), rgba(3, 2, 1, 0.98)),
-    radial-gradient(circle at 50% 0%, rgba(255, 211, 122, 0.12), transparent 46%);
-  border: 1px solid rgba(255, 199, 80, 0.72);
-  box-shadow:
-    inset 0 0 45px rgba(0, 0, 0, 0.78),
-    0 0 32px rgba(222, 159, 54, 0.12);
-  color: rgba(250, 236, 209, 0.92);
-  font-size: clamp(0.52rem, 0.92vw, 0.9rem);
-  height: 47.5%;
-  left: 25.7%;
-  line-height: 1.48;
-  overflow-y: auto;
-  padding: 3% 5.4%;
+.breakup {
+  background-image: radial-gradient(circle, rgba(255, 193, 71, 0.75) 0 2px, transparent 2px);
+  background-size: 18px 18px;
+  display: none;
+  inset: 0 -18% 0 62%;
+  opacity: 0.72;
   position: absolute;
-  scrollbar-color: rgba(255, 199, 80, 0.9) rgba(0, 0, 0, 0.25);
-  scrollbar-width: thin;
+}
+
+.is-defeated {
+  filter: drop-shadow(0 0 18px rgba(160, 58, 255, 0.28));
+}
+
+.is-defeated .breakup {
+  animation: dustFloat 7s linear infinite;
+  display: block;
+}
+
+.landing-hero {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  left: 50%;
+  position: absolute;
+  top: 2.2vh;
+  transform: translateX(-50%);
+  width: min(46rem, 76vw);
+  z-index: 4;
+}
+
+.hero-panel,
+.native-scroll-panel,
+.bottom-cta {
+  background:
+    linear-gradient(180deg, rgba(18, 14, 8, 0.9), rgba(5, 4, 3, 0.92)),
+    radial-gradient(circle at 50% 0, rgba(255, 207, 91, 0.16), transparent 42%);
+  border: 1px solid rgba(255, 202, 90, 0.65);
+  box-shadow:
+    inset 0 0 48px rgba(0, 0, 0, 0.72),
+    0 0 36px rgba(215, 163, 61, 0.12);
+}
+
+.hero-panel {
+  margin-top: 0.85rem;
+  padding: clamp(0.9rem, 1.55vw, 1.45rem);
   text-align: center;
-  top: 30%;
-  width: 48.7%;
+  width: 100%;
+}
+
+.eyebrow,
+.hero-panel p,
+.bottom-cta span,
+.challenge-header p,
+.challenge-tagline span {
+  color: #e8d5a8;
+  font-weight: 800;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+}
+
+.eyebrow {
+  font-size: clamp(0.7rem, 1vw, 1rem);
+}
+
+.hero-panel h1,
+.challenge-header h1 {
+  color: #e1ad4d;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.1rem, 4.25vw, 4.8rem);
+  letter-spacing: 0.04em;
+  line-height: 0.95;
+  margin: 0.25rem 0;
+  text-shadow: 0 2px 0 #0f0902, 0 0 18px rgba(255, 204, 86, 0.18);
+  text-transform: uppercase;
+}
+
+.hero-panel p {
+  font-size: clamp(0.72rem, 1vw, 0.95rem);
+  margin: 0.6rem 0 0.4rem;
+}
+
+.hero-panel > strong {
+  color: #e3b75d;
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.8rem, 4.45vw, 4.25rem);
+  letter-spacing: 0.04em;
+  line-height: 0.95;
+  margin-bottom: 0.8rem;
+  text-transform: uppercase;
+}
+
+.gold-rule {
+  background: linear-gradient(90deg, transparent, rgba(255, 205, 91, 0.8), transparent);
+  display: block;
+  height: 1px;
+  margin: 0.45rem auto;
+  width: 80%;
+}
+
+.waitlist-form {
+  display: grid;
+  gap: 0.7rem;
+  position: relative;
+}
+
+.native-waitlist {
+  grid-template-columns: 1fr;
+  margin: 0 auto;
+  width: min(35rem, 100%);
+}
+
+.native-waitlist.horizontal {
+  align-items: stretch;
+  grid-template-columns: 1fr minmax(10rem, 18rem);
+  width: 100%;
+}
+
+.waitlist-input,
+.waitlist-button {
+  border: 1px solid rgba(255, 211, 122, 0.48);
+  min-height: 3rem;
+  outline: none;
+  text-transform: uppercase;
+}
+
+.waitlist-input {
+  background: rgba(0, 0, 0, 0.58);
+  box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.7);
+  color: var(--ink);
+  letter-spacing: 0.09em;
+  padding: 0 1rem;
+}
+
+.waitlist-input::placeholder {
+  color: rgba(232, 213, 168, 0.62);
+}
+
+.waitlist-input:focus {
+  border-color: var(--gold-bright);
+  box-shadow:
+    inset 0 0 22px rgba(0, 0, 0, 0.7),
+    0 0 24px rgba(255, 205, 91, 0.22);
+}
+
+.waitlist-button {
+  background: linear-gradient(180deg, #f3d27c, #9b641e 60%, #4a2807);
+  color: #150d03;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  padding: 0 1.2rem;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(255, 241, 198, 0.5);
+  transition: filter 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.waitlist-button:hover,
+.waitlist-button:focus-visible {
+  box-shadow: 0 0 28px rgba(255, 200, 80, 0.32);
+  filter: brightness(1.12);
+}
+
+.waitlist-button:active {
+  transform: translateY(1px);
+}
+
+.waitlist-button:disabled {
+  cursor: wait;
+  opacity: 0.75;
+}
+
+.waitlist-status {
+  color: var(--gold-bright);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin: 0;
+  min-height: 1rem;
+  text-transform: uppercase;
+}
+
+.waitlist-status.is-error {
+  color: #ff7979;
+}
+
+.portal-button {
+  align-items: center;
+  bottom: 21vh;
+  display: flex;
+  height: clamp(8rem, 18vw, 15rem);
+  justify-content: center;
+  position: absolute;
+  text-decoration: none;
+  width: clamp(8rem, 18vw, 15rem);
   z-index: 5;
 }
 
-.about-scroll-panel p {
-  margin: 0 0 1em;
+.portal-purple {
+  left: 10vw;
 }
 
-.about-scroll-panel .pulse-line {
+.portal-gold {
+  right: 10vw;
+}
+
+.portal-core,
+.portal-orbit {
+  border-radius: 50%;
+  position: absolute;
+}
+
+.portal-core {
+  animation: portalPulse 4.5s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(255, 214, 128, 0.2), transparent 62%);
+  border: 1px solid rgba(255, 209, 116, 0.72);
+  inset: 11%;
+}
+
+.portal-purple .portal-core {
+  background: radial-gradient(circle, rgba(165, 50, 255, 0.28), transparent 62%);
+  border-color: rgba(176, 61, 255, 0.82);
+}
+
+.portal-orbit {
+  animation: portalSpin 17s linear infinite;
+  border: 2px dashed rgba(255, 219, 138, 0.58);
+  inset: 1rem;
+}
+
+.orbit-two {
+  animation-direction: reverse;
+  animation-duration: 24s;
+  border-style: solid;
+  inset: 2rem;
+  opacity: 0.5;
+}
+
+.portal-button strong {
+  color: var(--gold-bright);
+  font-size: clamp(1rem, 2.1vw, 1.9rem);
+  font-weight: 950;
+  letter-spacing: 0.2em;
+  position: absolute;
+  text-shadow: 0 0 18px rgba(255, 203, 80, 0.46);
+  text-transform: uppercase;
+  top: calc(100% + 0.8rem);
+}
+
+.portal-purple strong {
+  color: #d780ff;
+  text-shadow: 0 0 18px rgba(172, 52, 255, 0.62);
+}
+
+.portal-button:hover .portal-core,
+.portal-button:focus-visible .portal-core {
+  transform: scale(1.08);
+}
+
+.landing-pillars {
+  bottom: 6.2vh;
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+  width: min(46rem, 62vw);
+  z-index: 4;
+}
+
+.landing-pillars article {
+  border-left: 1px solid rgba(255, 205, 91, 0.22);
+  padding: 0.25rem 0.65rem;
+  text-align: center;
+}
+
+.landing-pillars span {
+  color: var(--gold);
+  display: block;
+  font-size: clamp(0.95rem, 1.6vw, 1.35rem);
+  line-height: 1;
+}
+
+.landing-pillars strong {
+  color: var(--gold);
+  display: block;
+  font-size: clamp(0.5rem, 0.68vw, 0.68rem);
+  letter-spacing: 0.08em;
+  margin: 0.2rem 0;
+  text-transform: uppercase;
+}
+
+.landing-pillars p {
+  color: rgba(246, 230, 188, 0.72);
+  font-size: clamp(0.48rem, 0.62vw, 0.62rem);
+  line-height: 1.25;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.arena-footer {
+  bottom: 0.8vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  left: 50%;
+  letter-spacing: 0.32em;
+  position: absolute;
+  text-align: center;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+  width: min(42rem, 80vw);
+  z-index: 3;
+}
+
+.arena-footer span {
+  color: rgba(246, 230, 188, 0.66);
+  font-size: clamp(0.6rem, 0.9vw, 0.85rem);
+}
+
+.arena-footer strong {
+  color: #cc8a2d;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.2rem, 2.5vw, 2.4rem);
+  font-style: italic;
+}
+
+.fatekeeper-throne {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  left: 50%;
+  position: absolute;
+  top: 2vh;
+  transform: translateX(-50%);
+  z-index: 4;
+}
+
+.throne-hood {
+  background: linear-gradient(180deg, #0a0908, #1d1710);
+  border: 1px solid rgba(255, 205, 91, 0.24);
+  border-radius: 50% 50% 25% 25%;
+  height: clamp(5rem, 11vw, 9rem);
+  margin-bottom: -2rem;
+  width: clamp(6rem, 13vw, 11rem);
+}
+
+.throne-hands {
+  border-bottom: 1px solid rgba(255, 205, 91, 0.5);
+  height: 2rem;
+  width: 16rem;
+}
+
+.native-scroll-panel {
+  height: min(44vh, 28rem);
+  left: 50%;
+  line-height: 1.55;
+  overflow-y: auto;
+  padding: clamp(1.2rem, 2vw, 2rem) clamp(1rem, 4vw, 4rem);
+  position: absolute;
+  scrollbar-color: var(--gold) rgba(0, 0, 0, 0.3);
+  scrollbar-width: thin;
+  text-align: center;
+  top: 27vh;
+  transform: translateX(-50%);
+  width: min(48rem, 58vw);
+  z-index: 5;
+}
+
+.native-scroll-panel p {
+  margin: 0 0 1rem;
+}
+
+.pulse-line {
   animation: textPulse 4.8s ease-in-out infinite;
-  color: #d8a84a;
-  font-weight: 800;
+  color: var(--gold);
+  font-weight: 900;
 }
 
-.watch-intro {
+.bottom-cta {
+  align-items: center;
+  display: grid;
+  gap: 0.8rem 1.1rem;
+  grid-template-columns: minmax(14rem, 1fr) minmax(27rem, 1.35fr);
+  left: 50%;
+  padding: 1rem 1.2rem 0.8rem;
+  position: absolute;
+  transform: translateX(-50%);
+  width: min(56rem, 70vw);
+  z-index: 5;
+}
+
+.bottom-cta span {
+  font-size: 0.8rem;
+  grid-column: 1 / -1;
+  text-align: center;
+}
+
+.bottom-cta > strong {
+  color: #d8a548;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.55rem, 3.4vw, 3.35rem);
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+
+.about-cta,
+.challenge-cta {
+  bottom: 4vh;
+}
+
+.watch-intro-native {
   align-items: center;
   background: transparent;
   border: 0;
-  color: #d9a84a;
+  bottom: 5.4vh;
+  color: var(--gold-bright);
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  height: 12.5%;
-  justify-content: center;
-  left: 64.1%;
-  letter-spacing: 0.12em;
+  gap: 0.4rem;
   position: absolute;
+  right: 10vw;
   text-transform: uppercase;
-  top: 82.2%;
-  width: 11.4%;
-  z-index: 7;
-}
-
-.watch-intro span {
-  align-items: center;
-  border: 1px solid rgba(255, 211, 122, 0.62);
-  border-radius: 50%;
-  box-shadow: 0 0 24px rgba(255, 201, 92, 0.32);
-  display: flex;
-  font-size: clamp(1.1rem, 2.3vw, 2rem);
-  height: 52%;
-  justify-content: center;
-  width: 44%;
-}
-
-.watch-intro strong {
-  font-size: clamp(0.42rem, 0.85vw, 0.8rem);
-}
-
-.return-arena {
-  align-items: center;
-  color: #ffd37a;
-  display: flex;
-  flex-direction: column;
-  font-size: clamp(0.48rem, 0.9vw, 0.78rem);
-  font-weight: 900;
-  gap: 0.25rem;
-  letter-spacing: 0.14em;
-  position: absolute;
-  text-decoration: none;
-  text-shadow: 0 0 12px rgba(255, 191, 73, 0.4);
-  text-transform: uppercase;
-  top: 89%;
-  width: 11%;
-  z-index: 8;
-}
-
-.return-left {
-  left: 2%;
-}
-
-.return-right {
-  right: 2%;
-}
-
-.return-arrow {
-  align-items: center;
-  animation: portalPulse 3.2s ease-in-out infinite;
-  border: 1px solid rgba(255, 211, 122, 0.58);
-  border-radius: 50%;
-  box-shadow: 0 0 20px rgba(255, 196, 89, 0.28);
-  display: flex;
-  font-size: clamp(1.5rem, 3vw, 3rem);
-  height: clamp(2rem, 4vw, 4rem);
-  justify-content: center;
-  line-height: 1;
-  width: clamp(2rem, 4vw, 4rem);
-}
-
-.return-arena:hover,
-.return-arena:focus-visible {
-  color: #fff1bf;
-  outline: none;
-}
-
-.challenge-card-hotspots {
-  display: grid;
-  gap: 1.4%;
-  grid-template-columns: repeat(4, 1fr);
-  height: 23.6%;
-  left: 5.5%;
-  position: absolute;
-  top: 43.7%;
-  width: 89%;
   z-index: 6;
 }
 
-.challenge-card-hotspots button {
-  background: transparent;
-  border: 1px solid transparent;
-  color: transparent;
+.watch-intro-native span {
+  align-items: center;
+  border: 1px solid rgba(255, 211, 122, 0.72);
+  border-radius: 50%;
+  box-shadow: 0 0 22px rgba(255, 197, 80, 0.24);
+  display: flex;
+  height: 4.2rem;
+  justify-content: center;
+  width: 4.2rem;
 }
 
-.challenge-card-hotspots button:hover,
-.challenge-card-hotspots button:focus-visible {
-  border-color: rgba(255, 211, 122, 0.74);
-  box-shadow: inset 0 0 28px rgba(255, 192, 74, 0.18), 0 0 24px rgba(255, 192, 74, 0.18);
-  outline: none;
+.watch-intro-native strong {
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
 }
 
-.challenge-card-hotspots span {
-  color: transparent;
+.return-link {
+  align-items: center;
+  bottom: 4vh;
+  color: var(--gold-bright);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  letter-spacing: 0.16em;
+  position: absolute;
+  text-decoration: none;
+  text-transform: uppercase;
+  z-index: 9;
+}
+
+.return-left {
+  left: 4vw;
+}
+
+.return-right {
+  right: 4vw;
+}
+
+.return-link span {
+  align-items: center;
+  animation: portalPulse 3.3s ease-in-out infinite;
+  border: 1px solid rgba(255, 211, 122, 0.72);
+  border-radius: 50%;
+  display: flex;
+  font-size: 3rem;
+  height: 4rem;
+  justify-content: center;
+  line-height: 0.8;
+  width: 4rem;
+}
+
+.return-link strong {
+  font-size: 0.72rem;
+}
+
+.challenge-header {
+  left: 50%;
+  position: absolute;
+  text-align: center;
+  top: 2vh;
+  transform: translateX(-50%);
+  width: min(48rem, 80vw);
+  z-index: 4;
+}
+
+.challenge-header .aa-crest {
+  margin: 0 auto -0.2rem;
+}
+
+.challenge-header h1 {
+  font-size: clamp(3.2rem, 8vw, 8.5rem);
+  letter-spacing: 0.18em;
+  margin: 0.2rem 0 0;
+}
+
+.challenge-header p {
+  font-size: clamp(0.75rem, 1.25vw, 1.1rem);
+  margin: 0;
+}
+
+.native-challenge-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  left: 50%;
+  position: absolute;
+  top: 40vh;
+  transform: translateX(-50%);
+  width: min(78rem, 84vw);
+  z-index: 4;
+}
+
+.challenge-card {
+  background: rgba(6, 5, 4, 0.84);
+  border: 1px solid rgba(255, 205, 91, 0.58);
+  box-shadow: inset 0 0 28px rgba(0, 0, 0, 0.7), 0 0 22px rgba(215, 163, 61, 0.08);
+  min-height: clamp(9rem, 17vw, 14rem);
+  overflow: hidden;
+  position: relative;
+}
+
+.card-scene {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 205, 91, 0.28), transparent 26%),
+    linear-gradient(135deg, rgba(0, 0, 0, 0.1), rgba(255, 205, 91, 0.08)),
+    #070604;
+  height: 70%;
+  overflow: hidden;
+  position: relative;
+}
+
+.card-beat .card-scene {
+  background:
+    radial-gradient(circle at 58% 30%, rgba(151, 62, 255, 0.34), transparent 30%),
+    radial-gradient(circle at 30% 42%, rgba(64, 150, 255, 0.24), transparent 24%),
+    #070604;
+}
+
+.card-persona .card-scene {
+  background:
+    radial-gradient(circle at 76% 45%, rgba(255, 205, 91, 0.32), transparent 24%),
+    linear-gradient(135deg, rgba(255, 205, 91, 0.08), rgba(0, 0, 0, 0.1)),
+    #070604;
+}
+
+.card-warrior {
+  background: linear-gradient(180deg, #090807, #1d1710);
+  bottom: 8%;
+  clip-path: polygon(45% 0, 60% 0, 72% 100%, 30% 100%);
+  height: 72%;
+  position: absolute;
+  width: 19%;
+}
+
+.card-warrior.left {
+  left: 22%;
+  transform: rotate(-10deg);
+}
+
+.card-warrior.right {
+  right: 22%;
+  transform: rotate(10deg);
+}
+
+.card-energy {
+  background: linear-gradient(90deg, transparent, rgba(255, 213, 108, 0.9), transparent);
+  filter: blur(2px);
+  height: 12%;
+  left: 0;
+  position: absolute;
+  top: 45%;
+  width: 100%;
+}
+
+.challenge-card h2 {
+  color: #d8a548;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(0.86rem, 1.55vw, 1.45rem);
+  letter-spacing: 0.04em;
+  margin: 0;
+  padding: 0.65rem 0.4rem;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.challenge-tagline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  left: 50%;
+  position: absolute;
+  text-align: center;
+  top: 66.5vh;
+  transform: translateX(-50%);
+  z-index: 4;
+}
+
+.challenge-tagline strong {
+  color: var(--gold);
+  font-size: clamp(0.9rem, 1.4vw, 1.3rem);
+  letter-spacing: 0.22em;
+}
+
+.challenge-tagline span {
+  font-size: clamp(0.62rem, 0.95vw, 0.85rem);
 }
 
 .intro-modal {
   align-items: center;
-  background: rgba(0, 0, 0, 0.72);
+  background: rgba(0, 0, 0, 0.74);
   display: flex;
   inset: 0;
   justify-content: center;
-  position: absolute;
-  z-index: 20;
+  position: fixed;
+  z-index: 30;
 }
 
 .intro-card {
-  background: rgba(7, 5, 3, 0.94);
-  border: 1px solid rgba(255, 211, 122, 0.65);
-  box-shadow: 0 0 45px rgba(255, 195, 74, 0.2);
-  color: #f8e6b3;
-  max-width: min(30rem, 86%);
+  background: rgba(8, 6, 4, 0.96);
+  border: 1px solid rgba(255, 205, 91, 0.6);
+  box-shadow: 0 0 60px rgba(215, 163, 61, 0.18);
   padding: 2rem;
   position: relative;
   text-align: center;
+  width: min(28rem, 86vw);
 }
 
 .intro-card button {
   background: transparent;
   border: 0;
-  color: #ffd37a;
+  color: var(--gold-bright);
   font-size: 1.6rem;
   position: absolute;
-  right: 0.6rem;
-  top: 0.35rem;
+  right: 0.7rem;
+  top: 0.4rem;
 }
 
 .intro-card p {
-  font-size: 1.2rem;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   margin: 0 0 0.7rem;
   text-transform: uppercase;
 }
 
 .intro-card span {
-  color: rgba(250, 236, 209, 0.72);
+  color: var(--muted);
 }
 
-@keyframes portalRotate {
-  from {
-    transform: rotate(0deg);
-  }
-
+@keyframes portalSpin {
   to {
     transform: rotate(360deg);
   }
@@ -497,13 +1049,13 @@ button {
 @keyframes portalPulse {
   0%,
   100% {
-    opacity: 0.68;
+    opacity: 0.72;
     transform: scale(1);
   }
 
   50% {
     opacity: 1;
-    transform: scale(1.045);
+    transform: scale(1.05);
   }
 }
 
@@ -514,91 +1066,169 @@ button {
   }
 
   50% {
-    text-shadow: 0 0 18px rgba(255, 211, 122, 0.42);
+    text-shadow: 0 0 18px rgba(255, 211, 122, 0.5);
   }
 }
 
-@media (max-aspect-ratio: 3 / 2) {
-  .portal-page {
-    align-items: start;
+@keyframes dustFloat {
+  to {
+    background-position: 120px -180px, -90px -140px;
+  }
+}
+
+@keyframes driftLeft {
+  to {
+    transform: rotate(10deg) translateX(1.5vw);
+  }
+}
+
+@keyframes driftRight {
+  to {
+    transform: rotate(-10deg) translateX(-1.5vw);
+  }
+}
+
+@media (max-width: 1000px) {
+  .arena-banner {
+    display: none;
   }
 
-  .portal-stage {
-    margin: auto 0;
+  .warrior {
+    opacity: 0.55;
+  }
+
+  .portal-purple {
+    left: 4vw;
+  }
+
+  .portal-gold {
+    right: 4vw;
+  }
+
+  .landing-pillars {
+    width: 84vw;
+  }
+
+  .bottom-cta {
+    width: 84vw;
+  }
+
+  .native-scroll-panel {
+    width: 72vw;
   }
 }
 
 @media (max-width: 760px) {
-  .portal-page {
-    align-items: center;
+  .arena-shell {
     min-height: 100dvh;
-    padding: 0;
+    overflow-y: auto;
+    padding: 1rem;
   }
 
-  .portal-stage {
-    flex: 0 0 auto;
-    height: 100dvh;
-    margin: 0;
-    max-height: none;
-    width: 150dvh;
+  .spotlight {
+    height: 44vh;
+    width: 45vw;
   }
 
-  .stage-art {
-    object-fit: cover;
+  .warrior {
+    display: none;
   }
 
-  .waitlist-status {
-    font-size: 0.46rem;
-    top: calc(100% + 0.18rem);
+  .landing-hero,
+  .challenge-header,
+  .fatekeeper-throne,
+  .native-scroll-panel,
+  .bottom-cta,
+  .landing-pillars,
+  .arena-footer,
+  .native-challenge-grid,
+  .challenge-tagline {
+    left: auto;
+    position: relative;
+    top: auto;
+    transform: none;
+    width: 100%;
   }
 
-  .portal-label {
-    opacity: 1;
+  .landing-hero {
+    margin: 0 auto 1rem;
   }
 
-  .mobile-direct-links {
-    bottom: 1.1rem;
-    display: flex;
-    gap: 0.8rem;
-    left: 50%;
-    position: fixed;
-    transform: translateX(-50%);
-    z-index: 30;
+  .hero-panel {
+    margin-top: 1rem;
   }
 
-  .mobile-direct-links a {
-    background: rgba(0, 0, 0, 0.72);
-    border: 1px solid rgba(255, 211, 122, 0.55);
-    color: #ffd37a;
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    padding: 0.65rem 0.85rem;
-    text-decoration: none;
-    text-transform: uppercase;
+  .portal-button {
+    bottom: auto;
+    height: 8rem;
+    margin: 1.1rem auto;
+    position: relative;
+    width: 8rem;
   }
 
-  .about-page .about-scroll-panel {
-    font-size: 0.5rem;
-    height: 42%;
-    left: 36.2%;
-    line-height: 1.42;
-    padding: 2.4% 1.5%;
-    top: 27%;
-    width: 27.6%;
+  .portal-purple,
+  .portal-gold {
+    display: inline-flex;
+    left: auto;
+    right: auto;
   }
 
-  .about-page .about-waitlist {
-    left: 37.5%;
-    top: 83.8%;
-    width: 25%;
+  .landing-rebuild {
+    text-align: center;
   }
 
-  .about-page .watch-intro {
-    left: 63.5%;
+  .landing-pillars {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 2.4rem 0 1.5rem;
+    transform: none;
   }
 
-  .challenges-page .portal-stage {
-    transform: translateX(-2.8%);
+  .arena-footer {
+    margin: 1rem 0;
+    transform: none;
+  }
+
+  .native-scroll-panel {
+    height: 48vh;
+    margin: 1rem auto;
+    padding: 1.2rem;
+  }
+
+  .bottom-cta {
+    grid-template-columns: 1fr;
+    margin: 1rem 0 5rem;
+    transform: none;
+  }
+
+  .native-waitlist.horizontal {
+    grid-template-columns: 1fr;
+  }
+
+  .watch-intro-native,
+  .return-link {
+    bottom: auto;
+    position: relative;
+    right: auto;
+  }
+
+  .watch-intro-native {
+    margin: 0 auto 1rem;
+  }
+
+  .return-link {
+    margin: 0 auto 1rem;
+  }
+
+  .native-challenge-grid {
+    grid-template-columns: 1fr;
+    margin: 1.2rem 0;
+  }
+
+  .challenge-card {
+    min-height: 12rem;
+  }
+
+  .challenge-tagline {
+    margin: 1rem 0;
   }
 }
