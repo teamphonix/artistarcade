@@ -36,6 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local waitlist captures
+data/
+dev-server.log
+screenshots/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
