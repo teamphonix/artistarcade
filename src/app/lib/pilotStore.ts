@@ -1,152 +1,208 @@
 import { promises as fs } from "fs";
 import path from "path";
 
-export type PilotArtist = {
+export const ARTISTS_PER_EVENT = 16;
+export const MVP_EVENT_COUNT = 4;
+export const TOTAL_MVP_ARTISTS = ARTISTS_PER_EVENT * MVP_EVENT_COUNT;
+export const SUBMISSION_LIMIT_SECONDS = 180;
+export const SUBMISSION_WINDOW_HOURS = 24;
+export const JUDGING_WINDOW_MINUTES = 15;
+export const JUDGES_PER_BATTLE = 4;
+
+export const SCORE_CATEGORIES = [
+  { key: "lyrics", label: "Lyrics", weight: 25 },
+  { key: "delivery", label: "Delivery", weight: 20 },
+  { key: "originality", label: "Originality", weight: 20 },
+  { key: "flow", label: "Flow", weight: 15 },
+  { key: "impact", label: "Impact", weight: 20 },
+] as const;
+
+export type ScoreKey = (typeof SCORE_CATEGORIES)[number]["key"];
+export type EventPhase = "queue" | "submission" | "judging" | "complete";
+export type ArtistStatus = "registered" | "queued" | "submitted" | "judging" | "advanced" | "eliminated" | "winner";
+export type BattleStatus = "pending" | "judging" | "complete";
+export type AssignmentStatus = "assigned" | "opened" | "completed" | "expired";
+
+export type ProtocolArtist = {
   id: string;
   name: string;
   email: string;
-  walletUsd: number;
-  credits: number;
-  status: "entered" | "submitted" | "judging" | "advanced" | "eliminated" | "winner";
+  walletCents: number;
+  rewardCents: number;
+  status: ArtistStatus;
+  createdAt: string;
 };
 
-export type PilotSubmission = {
+export type ProtocolEvent = {
   id: string;
+  title: string;
+  eventType: "rap";
+  creatorArtistId: string;
+  desiredPrizeCents: number;
+  entryFeeCents: number;
+  challengeTitle: string;
+  challengeDescription: string;
+  challengeAudioUrl: string;
+  phase: EventPhase;
+  currentRound: number;
+  queueOpenedAt: string;
+  queueClosedAt: string | null;
+  submissionDeadline: string | null;
+  judgingDeadline: string | null;
+  winnerArtistId: string | null;
+  companyRevenueCents: number;
+};
+
+export type ProtocolEntry = {
+  id: string;
+  eventId: string;
   artistId: string;
+  seed: number;
+  paidCents: number;
+  status: "queued" | "active" | "eliminated" | "winner";
+  joinedAt: string;
+};
+
+export type ProtocolSubmission = {
+  id: string;
+  eventId: string;
+  artistId: string;
+  round: number;
   title: string;
   audioUrl: string;
-  challenge: string;
-  createdAt: string;
+  durationSeconds: number;
+  submittedAt: string;
 };
 
-export type PilotJudgment = {
+export type ProtocolBattle = {
   id: string;
-  judgeArtistId: string;
-  submissionId: string;
-  lyrics: number;
-  delivery: number;
-  originality: number;
-  impact: number;
-  createdAt: string;
-};
-
-export type PilotJudgingAssignment = {
-  id: string;
-  judgeArtistId: string;
-  submissionId: string;
+  eventId: string;
   round: number;
-  status: "assigned" | "completed";
-  assignedAt: string;
+  slot: number;
+  artistAId: string;
+  artistBId: string;
+  status: BattleStatus;
+  winnerArtistId: string | null;
+  createdAt: string;
   completedAt: string | null;
 };
 
-export type PilotState = {
-  event: {
-    id: string;
-    name: string;
-    entryFee: number;
-    prize: number;
-    submissionWindow: string;
-    judgingWindow: string;
-    challenge: string;
-    phase: "entry" | "submission" | "judging" | "results";
+export type ProtocolAssignment = {
+  id: string;
+  battleId: string;
+  judgeArtistId: string;
+  status: AssignmentStatus;
+  assignedAt: string;
+  openedAt: string | null;
+  dueAt: string | null;
+  completedAt: string | null;
+};
+
+export type ProtocolJudgment = {
+  id: string;
+  assignmentId: string;
+  battleId: string;
+  judgeArtistId: string;
+  scores: Record<ScoreKey, number>;
+  selectedWinnerArtistId: string;
+  createdAt: string;
+};
+
+export type WalletLedgerEntry = {
+  id: string;
+  artistId: string | null;
+  eventId: string | null;
+  amountCents: number;
+  type: "deposit" | "entry_fee" | "prize" | "company_revenue";
+  note: string;
+  createdAt: string;
+};
+
+export type ProtocolState = {
+  settings: {
+    artistsPerEvent: number;
+    eventCount: number;
+    totalArtists: number;
+    submissionLimitSeconds: number;
+    submissionWindowHours: number;
+    judgingWindowMinutes: number;
+    judgesPerBattle: number;
   };
-  artists: PilotArtist[];
-  submissions: PilotSubmission[];
-  judgingAssignments: PilotJudgingAssignment[];
-  judgments: PilotJudgment[];
+  artists: ProtocolArtist[];
+  events: ProtocolEvent[];
+  entries: ProtocolEntry[];
+  submissions: ProtocolSubmission[];
+  battles: ProtocolBattle[];
+  assignments: ProtocolAssignment[];
+  judgments: ProtocolJudgment[];
+  walletLedger: WalletLedgerEntry[];
 };
 
 const dataDirectory = path.join(process.cwd(), "data");
 const pilotPath = path.join(dataDirectory, "pilot-state.json");
 
-export const seedPilotState: PilotState = {
-  event: {
-    id: "pilot-001",
-    name: "Pilot Ring A",
-    entryFee: 1,
-    prize: 5,
-    submissionWindow: "48 hours",
-    judgingWindow: "3 anonymous submissions",
-    challenge: "Original vocal performance using the provided beat and concept",
-    phase: "submission",
+export function makeId(prefix: string) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function isoPlus(hours = 0, minutes = 0) {
+  const date = new Date("2026-04-23T12:00:00.000Z");
+  date.setHours(date.getHours() + hours);
+  date.setMinutes(date.getMinutes() + minutes);
+  return date.toISOString();
+}
+
+const seedArtists: ProtocolArtist[] = Array.from({ length: TOTAL_MVP_ARTISTS }, (_, index) => ({
+  id: `artist-${index + 1}`,
+  name: `Pilot Artist ${index + 1}`,
+  email: `artist${index + 1}@example.com`,
+  walletCents: 10000,
+  rewardCents: 0,
+  status: "registered",
+  createdAt: isoPlus(0, index),
+}));
+
+const eventTitles = ["Lyrical Onslaught", "Story Mode", "Beat Talk", "Persona Pen"];
+
+const seedEvents: ProtocolEvent[] = eventTitles.map((title, index) => ({
+  id: `event-${index + 1}`,
+  title,
+  eventType: "rap",
+  creatorArtistId: "artist-1",
+  desiredPrizeCents: 50000,
+  entryFeeCents: 10000,
+  challengeTitle: `${title}: Round 1`,
+  challengeDescription:
+    "Create an original rap performance to the provided MP3. Maximum length is 3 minutes. Clean delivery, original writing, and impact decide the bracket.",
+  challengeAudioUrl: "https://example.com/challenges/pilot-beat.mp3",
+  phase: "queue",
+  currentRound: 1,
+  queueOpenedAt: isoPlus(),
+  queueClosedAt: null,
+  submissionDeadline: null,
+  judgingDeadline: null,
+  winnerArtistId: null,
+  companyRevenueCents: 0,
+}));
+
+export const seedPilotState: ProtocolState = {
+  settings: {
+    artistsPerEvent: ARTISTS_PER_EVENT,
+    eventCount: MVP_EVENT_COUNT,
+    totalArtists: TOTAL_MVP_ARTISTS,
+    submissionLimitSeconds: SUBMISSION_LIMIT_SECONDS,
+    submissionWindowHours: SUBMISSION_WINDOW_HOURS,
+    judgingWindowMinutes: JUDGING_WINDOW_MINUTES,
+    judgesPerBattle: JUDGES_PER_BATTLE,
   },
-  artists: [
-    {
-      id: "artist-a",
-      name: "Nova Saint",
-      email: "nova@example.com",
-      walletUsd: 9,
-      credits: 2,
-      status: "submitted",
-    },
-    {
-      id: "artist-b",
-      name: "Cipher Rae",
-      email: "cipher@example.com",
-      walletUsd: 4,
-      credits: 1,
-      status: "submitted",
-    },
-    {
-      id: "artist-c",
-      name: "Krown Vell",
-      email: "krown@example.com",
-      walletUsd: 6,
-      credits: 0,
-      status: "judging",
-    },
-  ],
-  submissions: [
-    {
-      id: "sub-a",
-      artistId: "artist-a",
-      title: "No Crown Without Fire",
-      audioUrl: "https://example.com/audio/nova-saint.mp3",
-      challenge: "Lyrical Onslaught",
-      createdAt: "2026-04-23T00:00:00.000Z",
-    },
-    {
-      id: "sub-b",
-      artistId: "artist-b",
-      title: "Warehouse Psalms",
-      audioUrl: "https://example.com/audio/cipher-rae.mp3",
-      challenge: "Story Mode",
-      createdAt: "2026-04-23T00:05:00.000Z",
-    },
-  ],
-  judgingAssignments: [
-    {
-      id: "assign-a",
-      judgeArtistId: "artist-c",
-      submissionId: "sub-a",
-      round: 1,
-      status: "completed",
-      assignedAt: "2026-04-23T00:30:00.000Z",
-      completedAt: "2026-04-23T01:00:00.000Z",
-    },
-    {
-      id: "assign-b",
-      judgeArtistId: "artist-a",
-      submissionId: "sub-b",
-      round: 1,
-      status: "assigned",
-      assignedAt: "2026-04-23T00:30:00.000Z",
-      completedAt: null,
-    },
-  ],
-  judgments: [
-    {
-      id: "judgment-a",
-      judgeArtistId: "artist-c",
-      submissionId: "sub-a",
-      lyrics: 4,
-      delivery: 5,
-      originality: 4,
-      impact: 5,
-      createdAt: "2026-04-23T01:00:00.000Z",
-    },
-  ],
+  artists: seedArtists,
+  events: seedEvents,
+  entries: [],
+  submissions: [],
+  battles: [],
+  assignments: [],
+  judgments: [],
+  walletLedger: [],
 };
 
 export async function readPilotState() {
@@ -154,47 +210,99 @@ export async function readPilotState() {
 
   try {
     const existing = await fs.readFile(pilotPath, "utf8");
-    return JSON.parse(existing) as PilotState;
+    return JSON.parse(existing) as ProtocolState;
   } catch {
     await writePilotState(seedPilotState);
-    return seedPilotState;
+    return structuredClone(seedPilotState);
   }
 }
 
-export async function writePilotState(state: PilotState) {
+export async function writePilotState(state: ProtocolState) {
   await fs.mkdir(dataDirectory, { recursive: true });
   await fs.writeFile(pilotPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 }
 
-export function scoreSubmission(state: PilotState, submissionId: string) {
-  const judgments = state.judgments.filter((judgment) => judgment.submissionId === submissionId);
-  if (judgments.length === 0) {
-    return 0;
+export async function resetPilotState() {
+  const nextState = structuredClone(seedPilotState);
+  await writePilotState(nextState);
+  return nextState;
+}
+
+export function centsToUsd(cents: number) {
+  return Math.round(cents) / 100;
+}
+
+export function clampScore(value: unknown) {
+  const score = Number(value);
+  if (!Number.isFinite(score)) {
+    return 1;
   }
 
-  const total = judgments.reduce((sum, judgment) => {
-    return sum + judgment.lyrics + judgment.delivery + judgment.originality + judgment.impact;
+  return Math.min(10, Math.max(1, Math.round(score)));
+}
+
+export function weightedScore(scores: Record<ScoreKey, number>) {
+  const total = SCORE_CATEGORIES.reduce((sum, category) => {
+    return sum + clampScore(scores[category.key]) * category.weight;
   }, 0);
 
-  return Math.round((total / (judgments.length * 20)) * 100);
+  return Math.round(total / 10);
 }
 
-export function rankedSubmissions(state: PilotState) {
-  return state.submissions
-    .map((submission) => ({
-      ...submission,
-      artist: state.artists.find((artist) => artist.id === submission.artistId),
-      score: scoreSubmission(state, submission.id),
-      judgmentCount: state.judgments.filter((judgment) => judgment.submissionId === submission.id).length,
-    }))
-    .sort((a, b) => b.score - a.score);
+export function getEventEntries(state: ProtocolState, eventId: string) {
+  return state.entries
+    .filter((entry) => entry.eventId === eventId)
+    .sort((a, b) => a.seed - b.seed)
+    .map((entry) => ({
+      ...entry,
+      artist: state.artists.find((artist) => artist.id === entry.artistId),
+    }));
 }
 
-export function makeId(prefix: string) {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+export function scoreBattle(state: ProtocolState, battleId: string) {
+  const battle = state.battles.find((entry) => entry.id === battleId);
+  if (!battle) {
+    return null;
+  }
+
+  const judgments = state.judgments.filter((judgment) => judgment.battleId === battleId);
+  const artistScores = [battle.artistAId, battle.artistBId].map((artistId) => {
+    const votes = judgments.filter((judgment) => judgment.selectedWinnerArtistId === artistId).length;
+    const scoreTotal = judgments
+      .filter((judgment) => judgment.selectedWinnerArtistId === artistId)
+      .reduce((sum, judgment) => sum + weightedScore(judgment.scores), 0);
+
+    return {
+      artistId,
+      votes,
+      score: scoreTotal,
+    };
+  });
+
+  artistScores.sort((a, b) => b.votes - a.votes || b.score - a.score);
+
+  return {
+    battle,
+    judgments,
+    artistScores,
+    winnerArtistId: artistScores[0]?.artistId || null,
+  };
 }
 
-export async function resetPilotState() {
-  await writePilotState(seedPilotState);
-  return seedPilotState;
+export function eventStandings(state: ProtocolState, eventId: string) {
+  const entries = getEventEntries(state, eventId);
+  return entries.map((entry) => {
+    const battles = state.battles.filter(
+      (battle) => battle.artistAId === entry.artistId || battle.artistBId === entry.artistId,
+    );
+    const wins = battles.filter((battle) => battle.winnerArtistId === entry.artistId).length;
+    const losses = battles.filter((battle) => battle.status === "complete" && battle.winnerArtistId !== entry.artistId)
+      .length;
+
+    return {
+      ...entry,
+      wins,
+      losses,
+    };
+  });
 }

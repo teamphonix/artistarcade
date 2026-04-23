@@ -1,6 +1,5 @@
-export const PILOT_CAPACITY = 48;
-export const PILOT_ENTRY_FEE_USD = 1;
-export const PILOT_PRIZE_USD = 5;
+export const PILOT_CAPACITY = 64;
+export const DEFAULT_WALLET_DEPOSIT_USD = 100;
 
 export const CHALLENGES = ["Lyrical Onslaught", "Story Mode", "Beat Talk", "Persona Pen"] as const;
 

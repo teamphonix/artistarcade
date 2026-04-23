@@ -1,540 +1,533 @@
 import { NextResponse } from "next/server";
 import {
+  ARTISTS_PER_EVENT,
+  JUDGES_PER_BATTLE,
+  JUDGING_WINDOW_MINUTES,
+  SCORE_CATEGORIES,
+  SUBMISSION_LIMIT_SECONDS,
+  SUBMISSION_WINDOW_HOURS,
+  clampScore,
+  eventStandings,
+  getEventEntries,
   makeId,
-  rankedSubmissions,
   readPilotState,
   resetPilotState,
+  scoreBattle,
   writePilotState,
-  type PilotJudgment,
-  type PilotJudgingAssignment,
-  type PilotSubmission,
+  type ProtocolBattle,
+  type ProtocolEntry,
+  type ProtocolJudgment,
+  type ProtocolState,
+  type ScoreKey,
 } from "@/app/lib/pilotStore";
-import { CHALLENGES, PILOT_CAPACITY, clampScore, isValidEmail } from "@/app/lib/protocol";
-import {
-  getSupabaseAdmin,
-  type DbArtist,
-  type DbJudgingAssignment,
-  type DbJudgment,
-  type DbSubmission,
-} from "@/app/lib/supabaseAdmin";
+import { isValidEmail } from "@/app/lib/protocol";
 
-type PilotAction = "enter" | "submit" | "judge" | "reset" | "advancePhase" | "markWinner" | "generateAssignments";
+type ProtocolAction =
+  | "deposit"
+  | "joinEvent"
+  | "closeQueue"
+  | "submit"
+  | "generateJudgeAssignments"
+  | "openAssignment"
+  | "judge"
+  | "finalizeRound"
+  | "reset";
 
-function mapSupabaseState(
-  artists: DbArtist[],
-  submissions: DbSubmission[],
-  judgments: DbJudgment[],
-  assignments: DbJudgingAssignment[],
-) {
-  const ranked = submissions
-    .map((submission) => {
-      const submissionJudgments = judgments.filter((judgment) => judgment.submission_id === submission.id);
-      const total = submissionJudgments.reduce((sum, judgment) => {
-        return sum + judgment.lyrics + judgment.delivery + judgment.originality + judgment.impact;
-      }, 0);
-      const score = submissionJudgments.length === 0 ? 0 : Math.round((total / (submissionJudgments.length * 20)) * 100);
-
-      return {
-        id: submission.id,
-        artistId: submission.artist_id,
-        title: submission.title,
-        audioUrl: submission.audio_url,
-        challenge: submission.challenge,
-        createdAt: submission.created_at,
-        artist: artists.find((artist) => artist.id === submission.artist_id),
-        score,
-        judgmentCount: submissionJudgments.length,
-      };
-    })
-    .sort((a, b) => b.score - a.score);
-
-  return {
-    state: {
-      event: {
-        id: "pilot-001",
-        name: "Pilot Ring A",
-        entryFee: 1,
-        prize: 5,
-        submissionWindow: "48 hours",
-        judgingWindow: "3 anonymous submissions",
-        challenge: "Original vocal performance using the provided beat and concept",
-        phase: "submission",
-        capacity: PILOT_CAPACITY,
-      },
-      artists: artists.map((artist) => ({
-        id: artist.id,
-        name: artist.name,
-        email: artist.email,
-        walletUsd: artist.wallet_cents / 100,
-        rewardUsd: artist.reward_cents / 100,
-        paymentStatus: artist.payment_status,
-        credits: 0,
-        status: artist.status,
-      })),
-      submissions: submissions.map((submission) => ({
-        id: submission.id,
-        artistId: submission.artist_id,
-        title: submission.title,
-        audioUrl: submission.audio_url,
-        challenge: submission.challenge,
-        createdAt: submission.created_at,
-      })),
-      judgingAssignments: assignments.map((assignment) => ({
-        id: assignment.id,
-        judgeArtistId: assignment.judge_artist_id,
-        submissionId: assignment.submission_id,
-        round: assignment.round,
-        status: assignment.status,
-        assignedAt: assignment.assigned_at,
-        completedAt: assignment.completed_at,
-      })),
-      judgments: judgments.map((judgment) => ({
-        id: judgment.id,
-        judgeArtistId: judgment.judge_artist_id,
-        submissionId: judgment.submission_id,
-        lyrics: judgment.lyrics,
-        delivery: judgment.delivery,
-        originality: judgment.originality,
-        impact: judgment.impact,
-        createdAt: judgment.created_at,
-      })),
-    },
-    ranked,
-    backend: "supabase",
-  };
+function addHours(date: Date, hours: number) {
+  const next = new Date(date);
+  next.setHours(next.getHours() + hours);
+  return next.toISOString();
 }
 
-async function readSupabasePilot() {
-  const supabase = getSupabaseAdmin();
-  if (!supabase) {
-    return null;
-  }
-
-  const [artistsResult, submissionsResult, judgmentsResult, assignmentsResult] = await Promise.all([
-    supabase.from("pilot_artists").select("*").order("created_at", { ascending: true }),
-    supabase.from("pilot_submissions").select("*").order("created_at", { ascending: true }),
-    supabase.from("pilot_judgments").select("*").order("created_at", { ascending: true }),
-    supabase.from("pilot_judging_assignments").select("*").order("assigned_at", { ascending: true }),
-  ]);
-
-  if (artistsResult.error || submissionsResult.error || judgmentsResult.error || assignmentsResult.error) {
-    const error = artistsResult.error || submissionsResult.error || judgmentsResult.error || assignmentsResult.error;
-    throw new Error(error?.message || "Supabase pilot read failed.");
-  }
-
-  return mapSupabaseState(
-    (artistsResult.data || []) as DbArtist[],
-    (submissionsResult.data || []) as DbSubmission[],
-    (judgmentsResult.data || []) as DbJudgment[],
-    (assignmentsResult.data || []) as DbJudgingAssignment[],
-  );
+function addMinutes(date: Date, minutes: number) {
+  const next = new Date(date);
+  next.setMinutes(next.getMinutes() + minutes);
+  return next.toISOString();
 }
 
-function buildAssignments(
-  artists: { id: string }[],
-  submissions: { id: string; artistId: string }[],
-  existingAssignments: { judgeArtistId: string; submissionId: string }[],
-  round = 1,
-) {
-  const now = new Date().toISOString();
-  const createdAssignments: PilotJudgingAssignment[] = [];
+function summarize(state: ProtocolState) {
+  const events = state.events.map((event) => {
+    const entries = getEventEntries(state, event.id);
+    const battles = state.battles.filter((battle) => battle.eventId === event.id);
+    const assignments = state.assignments.filter((assignment) =>
+      battles.some((battle) => battle.id === assignment.battleId),
+    );
 
-  submissions.forEach((submission, submissionIndex) => {
-    const eligibleJudges = artists.filter((artist) => artist.id !== submission.artistId);
-    const neededJudges = eligibleJudges.slice(submissionIndex).concat(eligibleJudges.slice(0, submissionIndex)).slice(0, 3);
-
-    neededJudges.forEach((judge) => {
-      const exists = existingAssignments.some(
-        (assignment) => assignment.judgeArtistId === judge.id && assignment.submissionId === submission.id,
-      );
-
-      if (!exists) {
-        createdAssignments.push({
-          id: makeId("assign"),
-          judgeArtistId: judge.id,
-          submissionId: submission.id,
-          round,
-          status: "assigned",
-          assignedAt: now,
-          completedAt: null,
-        });
-      }
-    });
+    return {
+      ...event,
+      queuedCount: entries.length,
+      openSlots: ARTISTS_PER_EVENT - entries.length,
+      grossPotCents: entries.reduce((sum, entry) => sum + entry.paidCents, 0),
+      projectedCompanyCents: Math.max(0, entries.reduce((sum, entry) => sum + entry.paidCents, 0) - event.desiredPrizeCents),
+      entries,
+      standings: eventStandings(state, event.id),
+      battles,
+      assignmentsTotal: assignments.length,
+      assignmentsCompleted: assignments.filter((assignment) => assignment.status === "completed").length,
+    };
   });
 
-  return createdAssignments;
-}
+  const scoredBattles = state.battles.map((battle) => scoreBattle(state, battle.id)).filter(Boolean);
 
-async function readPilotPayload() {
-  const supabasePayload = await readSupabasePilot();
-  if (supabasePayload) {
-    return supabasePayload;
-  }
-
-  const state = await readPilotState();
   return {
-    state: {
-      ...state,
-      event: {
-        ...state.event,
-        capacity: PILOT_CAPACITY,
-      },
+    settings: state.settings,
+    artists: state.artists,
+    events,
+    submissions: state.submissions,
+    battles: state.battles,
+    assignments: state.assignments,
+    judgments: state.judgments,
+    walletLedger: state.walletLedger,
+    scoredBattles,
+    scoreCategories: SCORE_CATEGORIES,
+    totals: {
+      artists: state.artists.length,
+      events: state.events.length,
+      eventCapacity: state.events.length * ARTISTS_PER_EVENT,
+      entries: state.entries.length,
+      submissions: state.submissions.length,
+      totalBattlesFullBracket: state.events.length * (ARTISTS_PER_EVENT - 1),
+      activeBattles: state.battles.filter((battle) => battle.status !== "complete").length,
+      completedBattles: state.battles.filter((battle) => battle.status === "complete").length,
+      assignments: state.assignments.length,
+      completedAssignments: state.assignments.filter((assignment) => assignment.status === "completed").length,
+      companyRevenueCents: state.events.reduce((sum, event) => sum + event.companyRevenueCents, 0),
     },
-    ranked: rankedSubmissions(state),
     backend: "local",
   };
 }
 
+function createRoundBattles(state: ProtocolState, eventId: string, round: number, artistIds: string[]) {
+  const now = new Date().toISOString();
+  const createdBattles: ProtocolBattle[] = [];
+
+  for (let index = 0; index < artistIds.length; index += 2) {
+    const artistAId = artistIds[index];
+    const artistBId = artistIds[index + 1];
+
+    if (!artistAId || !artistBId) {
+      continue;
+    }
+
+    const exists = state.battles.some(
+      (battle) =>
+        battle.eventId === eventId &&
+        battle.round === round &&
+        ((battle.artistAId === artistAId && battle.artistBId === artistBId) ||
+          (battle.artistAId === artistBId && battle.artistBId === artistAId)),
+    );
+
+    if (!exists) {
+      createdBattles.push({
+        id: makeId("battle"),
+        eventId,
+        round,
+        slot: Math.floor(index / 2) + 1,
+        artistAId,
+        artistBId,
+        status: "pending",
+        winnerArtistId: null,
+        createdAt: now,
+        completedAt: null,
+      });
+    }
+  }
+
+  state.battles.push(...createdBattles);
+}
+
+function eligibleJudges(state: ProtocolState, battle: ProtocolBattle) {
+  const battleEventEntryIds = state.entries
+    .filter((entry) => entry.eventId === battle.eventId)
+    .map((entry) => entry.artistId);
+
+  return state.artists.filter((artist) => {
+    if (artist.id === battle.artistAId || artist.id === battle.artistBId) {
+      return false;
+    }
+
+    return !battleEventEntryIds.includes(artist.id);
+  });
+}
+
+function maybeCompleteBattle(state: ProtocolState, battleId: string) {
+  const battle = state.battles.find((entry) => entry.id === battleId);
+  if (!battle) {
+    return;
+  }
+
+  const completedAssignments = state.assignments.filter(
+    (assignment) => assignment.battleId === battleId && assignment.status === "completed",
+  );
+
+  if (completedAssignments.length < JUDGES_PER_BATTLE) {
+    return;
+  }
+
+  const scored = scoreBattle(state, battleId);
+  if (!scored?.winnerArtistId) {
+    return;
+  }
+
+  battle.winnerArtistId = scored.winnerArtistId;
+  battle.status = "complete";
+  battle.completedAt = new Date().toISOString();
+
+  const loserId = battle.artistAId === scored.winnerArtistId ? battle.artistBId : battle.artistAId;
+  const winner = state.artists.find((artist) => artist.id === scored.winnerArtistId);
+  const loser = state.artists.find((artist) => artist.id === loserId);
+  const loserEntry = state.entries.find((entry) => entry.eventId === battle.eventId && entry.artistId === loserId);
+
+  if (winner) {
+    winner.status = "advanced";
+  }
+
+  if (loser) {
+    loser.status = "eliminated";
+  }
+
+  if (loserEntry) {
+    loserEntry.status = "eliminated";
+  }
+}
+
+async function readPayload() {
+  const state = await readPilotState();
+  return summarize(state);
+}
+
 export async function GET() {
   try {
-    return NextResponse.json(await readPilotPayload());
+    return NextResponse.json(await readPayload());
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Pilot read failed." }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Protocol read failed." }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
-  const action = body?.action as PilotAction | undefined;
+  const action = body?.action as ProtocolAction | undefined;
 
   if (!action) {
-    return NextResponse.json({ error: "Missing pilot action." }, { status: 400 });
+    return NextResponse.json({ error: "Missing protocol action." }, { status: 400 });
   }
 
+  if (action === "reset") {
+    await resetPilotState();
+    return NextResponse.json(await readPayload());
+  }
+
+  const state = await readPilotState();
+
   try {
-    const supabase = getSupabaseAdmin();
-
-    if (supabase) {
-      if (action === "enter") {
-        const name = String(body?.name || "").trim();
-        const email = String(body?.email || "").trim().toLowerCase();
-
-        if (name.length < 2 || !isValidEmail(email)) {
-          return NextResponse.json({ error: "Artist name and valid email are required." }, { status: 400 });
-        }
-
-        const { count, error: countError } = await supabase
-          .from("pilot_artists")
-          .select("*", { count: "exact", head: true });
-
-        if (countError) {
-          throw countError;
-        }
-
-        if ((count || 0) >= PILOT_CAPACITY) {
-          return NextResponse.json({ error: "Pilot Ring A is full at 48 artists." }, { status: 409 });
-        }
-
-        const { error } = await supabase.from("pilot_artists").upsert(
-          {
-            name,
-            email,
-            payment_status: body?.paymentStatus === "paid" ? "paid" : "pending",
-            wallet_cents: 0,
-            reward_cents: 0,
-            status: "entered",
-          },
-          { onConflict: "email" },
-        );
-
-        if (error) {
-          throw error;
-        }
-      }
-
-      if (action === "submit") {
-        const artistId = String(body?.artistId || "");
-        const title = String(body?.title || "").trim();
-        const audioUrl = String(body?.audioUrl || "").trim();
-        const challenge = CHALLENGES.includes(body?.challenge) ? body.challenge : CHALLENGES[0];
-
-        if (!artistId || title.length < 2 || !audioUrl) {
-          return NextResponse.json({ error: "Artist, title, and audio link are required." }, { status: 400 });
-        }
-
-        const { error: submissionError } = await supabase.from("pilot_submissions").upsert(
-          {
-            artist_id: artistId,
-            title,
-            audio_url: audioUrl,
-            challenge,
-          },
-          { onConflict: "artist_id" },
-        );
-
-        if (submissionError) {
-          throw submissionError;
-        }
-
-        const { error: artistError } = await supabase
-          .from("pilot_artists")
-          .update({ status: "submitted" })
-          .eq("id", artistId);
-
-        if (artistError) {
-          throw artistError;
-        }
-      }
-
-      if (action === "judge") {
-        const judgeArtistId = String(body?.judgeArtistId || "");
-        const submissionId = String(body?.submissionId || "");
-
-        if (!judgeArtistId || !submissionId) {
-          return NextResponse.json({ error: "Judge and submission are required." }, { status: 400 });
-        }
-
-        const { data: submission, error: submissionError } = await supabase
-          .from("pilot_submissions")
-          .select("artist_id")
-          .eq("id", submissionId)
-          .single();
-
-        if (submissionError) {
-          throw submissionError;
-        }
-
-        if (submission?.artist_id === judgeArtistId) {
-          return NextResponse.json({ error: "Artists cannot judge their own submission." }, { status: 409 });
-        }
-
-        const { data: assignment, error: assignmentError } = await supabase
-          .from("pilot_judging_assignments")
-          .select("id")
-          .eq("judge_artist_id", judgeArtistId)
-          .eq("submission_id", submissionId)
-          .maybeSingle();
-
-        if (assignmentError) {
-          throw assignmentError;
-        }
-
-        if (!assignment) {
-          return NextResponse.json({ error: "That judging assignment does not exist yet." }, { status: 409 });
-        }
-
-        const { error } = await supabase.from("pilot_judgments").upsert(
-          {
-            judge_artist_id: judgeArtistId,
-            submission_id: submissionId,
-            lyrics: clampScore(body?.lyrics),
-            delivery: clampScore(body?.delivery),
-            originality: clampScore(body?.originality),
-            impact: clampScore(body?.impact),
-          },
-          { onConflict: "judge_artist_id,submission_id" },
-        );
-
-        if (error) {
-          throw error;
-        }
-
-        const { error: updateAssignmentError } = await supabase
-          .from("pilot_judging_assignments")
-          .update({ status: "completed", completed_at: new Date().toISOString() })
-          .eq("id", assignment.id);
-
-        if (updateAssignmentError) {
-          throw updateAssignmentError;
-        }
-      }
-
-      if (action === "generateAssignments") {
-        const payload = await readSupabasePilot();
-        if (!payload) {
-          return NextResponse.json({ error: "Supabase is not configured." }, { status: 500 });
-        }
-
-        const assignments = buildAssignments(
-          payload.state.artists,
-          payload.state.submissions,
-          payload.state.judgingAssignments,
-        );
-
-        if (assignments.length > 0) {
-          const { error } = await supabase.from("pilot_judging_assignments").insert(
-            assignments.map((assignment) => ({
-              judge_artist_id: assignment.judgeArtistId,
-              submission_id: assignment.submissionId,
-              round: assignment.round,
-              status: assignment.status,
-              assigned_at: assignment.assignedAt,
-              completed_at: assignment.completedAt,
-            })),
-          );
-
-          if (error) {
-            throw error;
-          }
-        }
-      }
-
-      if (action === "markWinner") {
-        const artistId = String(body?.artistId || "");
-        if (!artistId) {
-          return NextResponse.json({ error: "Winner artist id is required." }, { status: 400 });
-        }
-
-        const { error: resetError } = await supabase
-          .from("pilot_artists")
-          .update({ status: "eliminated", reward_cents: 0 })
-          .neq("id", artistId);
-
-        if (resetError) {
-          throw resetError;
-        }
-
-        const { error: winnerError } = await supabase
-          .from("pilot_artists")
-          .update({ status: "winner", reward_cents: 500 })
-          .eq("id", artistId);
-
-        if (winnerError) {
-          throw winnerError;
-        }
-      }
-
-      return NextResponse.json(await readPilotPayload());
-    }
-
-    if (action === "reset") {
-      await resetPilotState();
-      return NextResponse.json(await readPilotPayload());
-    }
-
-    const state = await readPilotState();
-
-    if (action === "enter") {
+    if (action === "deposit") {
       const name = String(body?.name || "").trim();
       const email = String(body?.email || "").trim().toLowerCase();
+      const amountCents = Math.max(0, Math.round(Number(body?.amountCents || 0)));
 
-      if (name.length < 2 || !isValidEmail(email)) {
-        return NextResponse.json({ error: "Artist name and valid email are required." }, { status: 400 });
+      if (name.length < 2 || !isValidEmail(email) || amountCents < 100) {
+        return NextResponse.json({ error: "Name, valid email, and deposit amount are required." }, { status: 400 });
       }
 
-      if (state.artists.length >= PILOT_CAPACITY && !state.artists.some((artist) => artist.email === email)) {
-        return NextResponse.json({ error: "Pilot Ring A is full at 48 artists." }, { status: 409 });
-      }
-
-      const existingArtist = state.artists.find((artist) => artist.email === email);
-      if (existingArtist) {
-        existingArtist.name = name;
-      } else {
-        state.artists.push({
+      let artist = state.artists.find((entry) => entry.email === email);
+      if (!artist) {
+        artist = {
           id: makeId("artist"),
           name,
           email,
-          walletUsd: 0,
-          credits: 0,
-          status: "entered",
-        });
+          walletCents: 0,
+          rewardCents: 0,
+          status: "registered",
+          createdAt: new Date().toISOString(),
+        };
+        state.artists.push(artist);
       }
+
+      artist.name = name;
+      artist.walletCents += amountCents;
+      state.walletLedger.push({
+        id: makeId("ledger"),
+        artistId: artist.id,
+        eventId: null,
+        amountCents,
+        type: "deposit",
+        note: "Wallet deposit",
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    if (action === "joinEvent") {
+      const artistId = String(body?.artistId || "");
+      const eventId = String(body?.eventId || "");
+      const artist = state.artists.find((entry) => entry.id === artistId);
+      const event = state.events.find((entry) => entry.id === eventId);
+
+      if (!artist || !event) {
+        return NextResponse.json({ error: "Artist and event are required." }, { status: 400 });
+      }
+
+      const eventEntries = state.entries.filter((entry) => entry.eventId === eventId);
+      if (event.phase !== "queue") {
+        return NextResponse.json({ error: "This event queue is closed." }, { status: 409 });
+      }
+
+      if (eventEntries.length >= ARTISTS_PER_EVENT) {
+        return NextResponse.json({ error: "This event already has 16 artists." }, { status: 409 });
+      }
+
+      if (state.entries.some((entry) => entry.artistId === artistId)) {
+        return NextResponse.json({ error: "Artist is already queued in an MVP event." }, { status: 409 });
+      }
+
+      if (artist.walletCents < event.entryFeeCents) {
+        return NextResponse.json({ error: "Artist wallet does not have enough funds." }, { status: 409 });
+      }
+
+      artist.walletCents -= event.entryFeeCents;
+      artist.status = "queued";
+      const nextEntry: ProtocolEntry = {
+        id: makeId("entry"),
+        eventId,
+        artistId,
+        seed: eventEntries.length + 1,
+        paidCents: event.entryFeeCents,
+        status: "queued",
+        joinedAt: new Date().toISOString(),
+      };
+
+      state.entries.push(nextEntry);
+      state.walletLedger.push({
+        id: makeId("ledger"),
+        artistId,
+        eventId,
+        amountCents: -event.entryFeeCents,
+        type: "entry_fee",
+        note: `Entry fee for ${event.title}`,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    if (action === "closeQueue") {
+      const eventId = String(body?.eventId || "");
+      const event = state.events.find((entry) => entry.id === eventId);
+      const entries = state.entries.filter((entry) => entry.eventId === eventId).sort((a, b) => a.seed - b.seed);
+
+      if (!event) {
+        return NextResponse.json({ error: "Event is required." }, { status: 400 });
+      }
+
+      if (entries.length !== ARTISTS_PER_EVENT) {
+        return NextResponse.json({ error: "Queue needs exactly 16 artists before it closes." }, { status: 409 });
+      }
+
+      event.phase = "submission";
+      event.queueClosedAt = new Date().toISOString();
+      event.submissionDeadline = addHours(new Date(), SUBMISSION_WINDOW_HOURS);
+      entries.forEach((entry) => {
+        entry.status = "active";
+      });
+      createRoundBattles(
+        state,
+        event.id,
+        1,
+        entries.map((entry) => entry.artistId),
+      );
     }
 
     if (action === "submit") {
       const artistId = String(body?.artistId || "");
+      const eventId = String(body?.eventId || "");
       const title = String(body?.title || "").trim();
       const audioUrl = String(body?.audioUrl || "").trim();
-      const challenge = CHALLENGES.includes(body?.challenge) ? body.challenge : CHALLENGES[0];
+      const durationSeconds = Math.round(Number(body?.durationSeconds || 0));
+      const event = state.events.find((entry) => entry.id === eventId);
+      const entry = state.entries.find((eventEntry) => eventEntry.eventId === eventId && eventEntry.artistId === artistId);
 
-      if (!artistId || title.length < 2 || !audioUrl) {
-        return NextResponse.json({ error: "Artist, title, and audio link are required." }, { status: 400 });
+      if (!event || !entry || title.length < 2 || !audioUrl) {
+        return NextResponse.json({ error: "Event, artist, title, and audio link are required." }, { status: 400 });
       }
 
-      const artist = state.artists.find((entry) => entry.id === artistId);
-      if (!artist) {
-        return NextResponse.json({ error: "Artist not found." }, { status: 404 });
+      if (durationSeconds < 1 || durationSeconds > SUBMISSION_LIMIT_SECONDS) {
+        return NextResponse.json({ error: "Submission must be 3 minutes or less." }, { status: 409 });
       }
 
-      const existingSubmission = state.submissions.find((submission) => submission.artistId === artistId);
-      const nextSubmission: PilotSubmission = {
-        id: existingSubmission?.id || makeId("sub"),
+      const existing = state.submissions.find(
+        (submission) => submission.eventId === eventId && submission.artistId === artistId && submission.round === event.currentRound,
+      );
+
+      const nextSubmission = {
+        id: existing?.id || makeId("sub"),
+        eventId,
         artistId,
+        round: event.currentRound,
         title,
         audioUrl,
-        challenge,
-        createdAt: existingSubmission?.createdAt || new Date().toISOString(),
+        durationSeconds,
+        submittedAt: existing?.submittedAt || new Date().toISOString(),
       };
 
-      state.submissions = [
-        ...state.submissions.filter((submission) => submission.artistId !== artistId),
-        nextSubmission,
-      ];
-      artist.status = "submitted";
+      state.submissions = state.submissions.filter((submission) => submission.id !== existing?.id);
+      state.submissions.push(nextSubmission);
+      const artist = state.artists.find((entryArtist) => entryArtist.id === artistId);
+      if (artist) {
+        artist.status = "submitted";
+      }
+    }
+
+    if (action === "generateJudgeAssignments") {
+      const eventId = String(body?.eventId || "");
+      const event = state.events.find((entry) => entry.id === eventId);
+
+      if (!event) {
+        return NextResponse.json({ error: "Event is required." }, { status: 400 });
+      }
+
+      const roundBattles = state.battles.filter(
+        (battle) => battle.eventId === event.id && battle.round === event.currentRound && battle.status !== "complete",
+      );
+
+      roundBattles.forEach((battle) => {
+        const existingAssignments = state.assignments.filter((assignment) => assignment.battleId === battle.id);
+        const judges = eligibleJudges(state, battle)
+          .filter((artist) => !existingAssignments.some((assignment) => assignment.judgeArtistId === artist.id))
+          .slice(0, JUDGES_PER_BATTLE - existingAssignments.length);
+
+        judges.forEach((judge) => {
+          state.assignments.push({
+            id: makeId("assign"),
+            battleId: battle.id,
+            judgeArtistId: judge.id,
+            status: "assigned",
+            assignedAt: new Date().toISOString(),
+            openedAt: null,
+            dueAt: null,
+            completedAt: null,
+          });
+        });
+
+        battle.status = "judging";
+      });
+
+      event.phase = "judging";
+      event.judgingDeadline = addHours(new Date(), 24);
+    }
+
+    if (action === "openAssignment") {
+      const assignmentId = String(body?.assignmentId || "");
+      const assignment = state.assignments.find((entry) => entry.id === assignmentId);
+
+      if (!assignment) {
+        return NextResponse.json({ error: "Assignment is required." }, { status: 400 });
+      }
+
+      if (assignment.status === "assigned") {
+        assignment.status = "opened";
+        assignment.openedAt = new Date().toISOString();
+        assignment.dueAt = addMinutes(new Date(), JUDGING_WINDOW_MINUTES);
+      }
     }
 
     if (action === "judge") {
-      const judgeArtistId = String(body?.judgeArtistId || "");
-      const submissionId = String(body?.submissionId || "");
-      const submission = state.submissions.find((entry) => entry.id === submissionId);
-
-      if (!judgeArtistId || !submission) {
-        return NextResponse.json({ error: "Judge and submission are required." }, { status: 400 });
-      }
-
-      if (submission.artistId === judgeArtistId) {
-        return NextResponse.json({ error: "Artists cannot judge their own submission." }, { status: 409 });
-      }
-
-      const assignment = state.judgingAssignments.find(
-        (entry) => entry.judgeArtistId === judgeArtistId && entry.submissionId === submissionId,
-      );
+      const assignmentId = String(body?.assignmentId || "");
+      const selectedWinnerArtistId = String(body?.selectedWinnerArtistId || "");
+      const assignment = state.assignments.find((entry) => entry.id === assignmentId);
 
       if (!assignment) {
-        return NextResponse.json({ error: "That judging assignment does not exist yet." }, { status: 409 });
+        return NextResponse.json({ error: "Assignment is required." }, { status: 400 });
       }
 
-      const nextJudgment: PilotJudgment = {
+      const battle = state.battles.find((entry) => entry.id === assignment.battleId);
+      if (!battle || ![battle.artistAId, battle.artistBId].includes(selectedWinnerArtistId)) {
+        return NextResponse.json({ error: "Battle winner selection is invalid." }, { status: 400 });
+      }
+
+      if (assignment.dueAt && new Date() > new Date(assignment.dueAt)) {
+        assignment.status = "expired";
+        return NextResponse.json({ error: "This 15-minute judging window expired." }, { status: 409 });
+      }
+
+      const scores = SCORE_CATEGORIES.reduce(
+        (nextScores, category) => ({
+          ...nextScores,
+          [category.key]: clampScore(body?.scores?.[category.key]),
+        }),
+        {} as Record<ScoreKey, number>,
+      );
+
+      const judgment: ProtocolJudgment = {
         id: makeId("judgment"),
-        judgeArtistId,
-        submissionId,
-        lyrics: clampScore(body?.lyrics),
-        delivery: clampScore(body?.delivery),
-        originality: clampScore(body?.originality),
-        impact: clampScore(body?.impact),
+        assignmentId,
+        battleId: battle.id,
+        judgeArtistId: assignment.judgeArtistId,
+        scores,
+        selectedWinnerArtistId,
         createdAt: new Date().toISOString(),
       };
 
-      state.judgments = [
-        ...state.judgments.filter(
-          (judgment) => !(judgment.judgeArtistId === judgeArtistId && judgment.submissionId === submissionId),
-        ),
-        nextJudgment,
-      ];
-      const judge = state.artists.find((artist) => artist.id === judgeArtistId);
-      if (judge) {
-        judge.status = "judging";
-      }
+      state.judgments = state.judgments.filter((entry) => entry.assignmentId !== assignmentId);
+      state.judgments.push(judgment);
       assignment.status = "completed";
       assignment.completedAt = new Date().toISOString();
+      maybeCompleteBattle(state, battle.id);
     }
 
-    if (action === "generateAssignments") {
-      const createdAssignments = buildAssignments(state.artists, state.submissions, state.judgingAssignments);
-      state.judgingAssignments.push(...createdAssignments);
-      state.event.phase = "judging";
-    }
+    if (action === "finalizeRound") {
+      const eventId = String(body?.eventId || "");
+      const event = state.events.find((entry) => entry.id === eventId);
 
-    if (action === "advancePhase") {
-      const phase = body?.phase;
-      if (phase === "entry" || phase === "submission" || phase === "judging" || phase === "results") {
-        state.event.phase = phase;
+      if (!event) {
+        return NextResponse.json({ error: "Event is required." }, { status: 400 });
       }
-    }
 
-    if (action === "markWinner") {
-      const artistId = String(body?.artistId || "");
-      state.artists = state.artists.map((artist) => ({
-        ...artist,
-        status: artist.id === artistId ? "winner" : "eliminated",
-        walletUsd: artist.id === artistId ? artist.walletUsd + 5 : artist.walletUsd,
-      }));
-      state.event.phase = "results";
+      const roundBattles = state.battles.filter((battle) => battle.eventId === eventId && battle.round === event.currentRound);
+      if (roundBattles.some((battle) => battle.status !== "complete" || !battle.winnerArtistId)) {
+        return NextResponse.json({ error: "All round battles must be complete before advancing." }, { status: 409 });
+      }
+
+      const winners = roundBattles.map((battle) => battle.winnerArtistId).filter(Boolean) as string[];
+      if (winners.length === 1) {
+        const winner = state.artists.find((artist) => artist.id === winners[0]);
+        if (winner) {
+          winner.status = "winner";
+          winner.walletCents += event.desiredPrizeCents;
+          winner.rewardCents += event.desiredPrizeCents;
+        }
+        const gross = state.entries
+          .filter((entry) => entry.eventId === eventId)
+          .reduce((sum, entry) => sum + entry.paidCents, 0);
+        event.winnerArtistId = winners[0];
+        event.companyRevenueCents = Math.max(0, gross - event.desiredPrizeCents);
+        event.phase = "complete";
+        state.walletLedger.push({
+          id: makeId("ledger"),
+          artistId: winners[0],
+          eventId,
+          amountCents: event.desiredPrizeCents,
+          type: "prize",
+          note: `Winner prize for ${event.title}`,
+          createdAt: new Date().toISOString(),
+        });
+        state.walletLedger.push({
+          id: makeId("ledger"),
+          artistId: null,
+          eventId,
+          amountCents: event.companyRevenueCents,
+          type: "company_revenue",
+          note: `Company remainder for ${event.title}`,
+          createdAt: new Date().toISOString(),
+        });
+      } else {
+        event.currentRound += 1;
+        event.phase = "submission";
+        event.submissionDeadline = addHours(new Date(), SUBMISSION_WINDOW_HOURS);
+        event.judgingDeadline = null;
+        createRoundBattles(state, event.id, event.currentRound, winners);
+      }
     }
 
     await writePilotState(state);
-    return NextResponse.json(await readPilotPayload());
+    return NextResponse.json(await readPayload());
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Pilot action failed." }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Protocol action failed." }, { status: 500 });
   }
 }

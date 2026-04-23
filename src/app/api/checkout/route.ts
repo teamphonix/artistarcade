@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { centsFromUsd, isValidEmail, PILOT_ENTRY_FEE_USD } from "@/app/lib/protocol";
+import { DEFAULT_WALLET_DEPOSIT_USD, centsFromUsd, isValidEmail } from "@/app/lib/protocol";
 import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { getAppUrl, getStripe } from "@/app/lib/stripe";
 
@@ -7,6 +7,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const name = String(body?.name || "").trim();
   const email = String(body?.email || "").trim().toLowerCase();
+  const amountCents = Math.max(100, Math.round(Number(body?.amountCents || centsFromUsd(DEFAULT_WALLET_DEPOSIT_USD))));
 
   if (name.length < 2 || !isValidEmail(email)) {
     return NextResponse.json({ error: "Artist name and valid email are required." }, { status: 400 });
@@ -21,14 +22,13 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
 
   if (supabase) {
-    const { error } = await supabase.from("pilot_artists").upsert(
+    const { error } = await supabase.from("protocol_artists").upsert(
       {
         name,
         email,
-        payment_status: "pending",
         wallet_cents: 0,
         reward_cents: 0,
-        status: "entered",
+        status: "registered",
       },
       { onConflict: "email" },
     );
@@ -46,10 +46,10 @@ export async function POST(request: Request) {
         quantity: 1,
         price_data: {
           currency: "usd",
-          unit_amount: centsFromUsd(PILOT_ENTRY_FEE_USD),
+          unit_amount: amountCents,
           product_data: {
-            name: "Artist Arcade Pilot Entry",
-            description: "Entry into Pilot Ring A",
+            name: "Artist Arcade Wallet Deposit",
+            description: "Funds for Artist Arcade event entry",
           },
         },
       },
@@ -57,7 +57,8 @@ export async function POST(request: Request) {
     metadata: {
       name,
       email,
-      protocol: "artist-arcade-pilot",
+      amountCents: String(amountCents),
+      protocol: "artist-arcade-wallet",
     },
     success_url: `${appUrl}/arena?payment=success`,
     cancel_url: `${appUrl}/arena?payment=cancelled`,
