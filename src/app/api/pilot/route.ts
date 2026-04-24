@@ -13,6 +13,7 @@ import {
   readPilotState,
   resetPilotState,
   scoreBattle,
+  seedPilotState,
   writePilotState,
   type ProtocolBattle,
   type ProtocolEntry,
@@ -20,6 +21,7 @@ import {
   type ProtocolState,
   type ScoreKey,
 } from "@/app/lib/pilotStore";
+import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { isValidEmail } from "@/app/lib/protocol";
 
 type ProtocolAction =
@@ -58,7 +60,10 @@ function summarize(state: ProtocolState) {
       queuedCount: entries.length,
       openSlots: ARTISTS_PER_EVENT - entries.length,
       grossPotCents: entries.reduce((sum, entry) => sum + entry.paidCents, 0),
-      projectedCompanyCents: Math.max(0, entries.reduce((sum, entry) => sum + entry.paidCents, 0) - event.desiredPrizeCents),
+      projectedCompanyCents: Math.max(
+        0,
+        entries.reduce((sum, entry) => sum + entry.paidCents, 0) - event.desiredPrizeCents,
+      ),
       entries,
       standings: eventStandings(state, event.id),
       battles,
@@ -93,7 +98,7 @@ function summarize(state: ProtocolState) {
       completedAssignments: state.assignments.filter((assignment) => assignment.status === "completed").length,
       companyRevenueCents: state.events.reduce((sum, event) => sum + event.companyRevenueCents, 0),
     },
-    backend: "local",
+    backend: getSupabaseAdmin() ? "supabase" : "local",
   };
 }
 
@@ -191,9 +196,325 @@ function maybeCompleteBattle(state: ProtocolState, battleId: string) {
   }
 }
 
+async function readSupabaseState() {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    return readPilotState();
+  }
+
+  const [
+    artistsResult,
+    eventsResult,
+    entriesResult,
+    submissionsResult,
+    battlesResult,
+    assignmentsResult,
+    judgmentsResult,
+    walletLedgerResult,
+  ] = await Promise.all([
+    supabase.from("protocol_artists").select("*").order("created_at", { ascending: true }),
+    supabase.from("protocol_events").select("*").order("queue_opened_at", { ascending: true }),
+    supabase.from("protocol_entries").select("*").order("joined_at", { ascending: true }),
+    supabase.from("protocol_submissions").select("*").order("submitted_at", { ascending: true }),
+    supabase.from("protocol_battles").select("*").order("created_at", { ascending: true }),
+    supabase.from("protocol_assignments").select("*").order("assigned_at", { ascending: true }),
+    supabase.from("protocol_judgments").select("*").order("created_at", { ascending: true }),
+    supabase.from("protocol_wallet_ledger").select("*").order("created_at", { ascending: true }),
+  ]);
+
+  const error =
+    artistsResult.error ||
+    eventsResult.error ||
+    entriesResult.error ||
+    submissionsResult.error ||
+    battlesResult.error ||
+    assignmentsResult.error ||
+    judgmentsResult.error ||
+    walletLedgerResult.error;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const state: ProtocolState = {
+    settings: seedPilotState.settings,
+    artists: (artistsResult.data || []).map((artist) => ({
+      id: artist.id,
+      name: artist.name,
+      email: artist.email,
+      walletCents: artist.wallet_cents,
+      rewardCents: artist.reward_cents,
+      status: artist.status,
+      createdAt: artist.created_at,
+    })),
+    events: (eventsResult.data || []).map((event) => ({
+      id: event.id,
+      title: event.title,
+      eventType: event.event_type,
+      creatorArtistId: event.creator_artist_id,
+      desiredPrizeCents: event.desired_prize_cents,
+      entryFeeCents: event.entry_fee_cents,
+      challengeTitle: event.challenge_title,
+      challengeDescription: event.challenge_description,
+      challengeAudioUrl: event.challenge_audio_url,
+      phase: event.phase,
+      currentRound: event.current_round,
+      queueOpenedAt: event.queue_opened_at,
+      queueClosedAt: event.queue_closed_at,
+      submissionDeadline: event.submission_deadline,
+      judgingDeadline: event.judging_deadline,
+      winnerArtistId: event.winner_artist_id,
+      companyRevenueCents: event.company_revenue_cents,
+    })),
+    entries: (entriesResult.data || []).map((entry) => ({
+      id: entry.id,
+      eventId: entry.event_id,
+      artistId: entry.artist_id,
+      seed: entry.seed,
+      paidCents: entry.paid_cents,
+      status: entry.status,
+      joinedAt: entry.joined_at,
+    })),
+    submissions: (submissionsResult.data || []).map((submission) => ({
+      id: submission.id,
+      eventId: submission.event_id,
+      artistId: submission.artist_id,
+      round: submission.round,
+      title: submission.title,
+      audioUrl: submission.audio_url,
+      durationSeconds: submission.duration_seconds,
+      submittedAt: submission.submitted_at,
+    })),
+    battles: (battlesResult.data || []).map((battle) => ({
+      id: battle.id,
+      eventId: battle.event_id,
+      round: battle.round,
+      slot: battle.slot,
+      artistAId: battle.artist_a_id,
+      artistBId: battle.artist_b_id,
+      status: battle.status,
+      winnerArtistId: battle.winner_artist_id,
+      createdAt: battle.created_at,
+      completedAt: battle.completed_at,
+    })),
+    assignments: (assignmentsResult.data || []).map((assignment) => ({
+      id: assignment.id,
+      battleId: assignment.battle_id,
+      judgeArtistId: assignment.judge_artist_id,
+      status: assignment.status,
+      assignedAt: assignment.assigned_at,
+      openedAt: assignment.opened_at,
+      dueAt: assignment.due_at,
+      completedAt: assignment.completed_at,
+    })),
+    judgments: (judgmentsResult.data || []).map((judgment) => ({
+      id: judgment.id,
+      assignmentId: judgment.assignment_id,
+      battleId: judgment.battle_id,
+      judgeArtistId: judgment.judge_artist_id,
+      scores: {
+        lyrics: judgment.lyrics,
+        delivery: judgment.delivery,
+        originality: judgment.originality,
+        flow: judgment.flow,
+        impact: judgment.impact,
+      },
+      selectedWinnerArtistId: judgment.selected_winner_artist_id,
+      createdAt: judgment.created_at,
+    })),
+    walletLedger: (walletLedgerResult.data || []).map((entry) => ({
+      id: entry.id,
+      artistId: entry.artist_id,
+      eventId: entry.event_id,
+      amountCents: entry.amount_cents,
+      type: entry.type,
+      note: entry.note,
+      createdAt: entry.created_at,
+    })),
+  };
+
+  if (state.artists.length === 0 && state.events.length === 0) {
+    await writeSupabaseState(seedPilotState);
+    return structuredClone(seedPilotState);
+  }
+
+  return state;
+}
+
+async function writeSupabaseState(state: ProtocolState) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    await writePilotState(state);
+    return;
+  }
+
+  const deleteAll = async (table: string, timestampColumn: string) => {
+    const { error } = await supabase.from(table).delete().gte(timestampColumn, "1900-01-01");
+    if (error) {
+      throw new Error(error.message);
+    }
+  };
+
+  await deleteAll("protocol_judgments", "created_at");
+  await deleteAll("protocol_assignments", "assigned_at");
+  await deleteAll("protocol_battles", "created_at");
+  await deleteAll("protocol_submissions", "submitted_at");
+  await deleteAll("protocol_entries", "joined_at");
+  await deleteAll("protocol_wallet_ledger", "created_at");
+  await deleteAll("protocol_events", "queue_opened_at");
+  await deleteAll("protocol_artists", "created_at");
+
+  const insert = async (table: string, rows: Record<string, unknown>[]) => {
+    if (rows.length === 0) {
+      return;
+    }
+
+    const { error } = await supabase.from(table).insert(rows);
+    if (error) {
+      throw new Error(error.message);
+    }
+  };
+
+  await insert(
+    "protocol_artists",
+    state.artists.map((artist) => ({
+      id: artist.id,
+      name: artist.name,
+      email: artist.email,
+      stripe_customer_id: null,
+      wallet_cents: artist.walletCents,
+      reward_cents: artist.rewardCents,
+      status: artist.status,
+      created_at: artist.createdAt,
+    })),
+  );
+
+  await insert(
+    "protocol_events",
+    state.events.map((event) => ({
+      id: event.id,
+      title: event.title,
+      event_type: event.eventType,
+      creator_artist_id: event.creatorArtistId,
+      desired_prize_cents: event.desiredPrizeCents,
+      entry_fee_cents: event.entryFeeCents,
+      challenge_title: event.challengeTitle,
+      challenge_description: event.challengeDescription,
+      challenge_audio_url: event.challengeAudioUrl,
+      phase: event.phase,
+      current_round: event.currentRound,
+      queue_opened_at: event.queueOpenedAt,
+      queue_closed_at: event.queueClosedAt,
+      submission_deadline: event.submissionDeadline,
+      judging_deadline: event.judgingDeadline,
+      winner_artist_id: event.winnerArtistId,
+      company_revenue_cents: event.companyRevenueCents,
+    })),
+  );
+
+  await insert(
+    "protocol_entries",
+    state.entries.map((entry) => ({
+      id: entry.id,
+      event_id: entry.eventId,
+      artist_id: entry.artistId,
+      seed: entry.seed,
+      paid_cents: entry.paidCents,
+      status: entry.status,
+      joined_at: entry.joinedAt,
+    })),
+  );
+
+  await insert(
+    "protocol_submissions",
+    state.submissions.map((submission) => ({
+      id: submission.id,
+      event_id: submission.eventId,
+      artist_id: submission.artistId,
+      round: submission.round,
+      title: submission.title,
+      audio_url: submission.audioUrl,
+      duration_seconds: submission.durationSeconds,
+      submitted_at: submission.submittedAt,
+    })),
+  );
+
+  await insert(
+    "protocol_battles",
+    state.battles.map((battle) => ({
+      id: battle.id,
+      event_id: battle.eventId,
+      round: battle.round,
+      slot: battle.slot,
+      artist_a_id: battle.artistAId,
+      artist_b_id: battle.artistBId,
+      status: battle.status,
+      winner_artist_id: battle.winnerArtistId,
+      created_at: battle.createdAt,
+      completed_at: battle.completedAt,
+    })),
+  );
+
+  await insert(
+    "protocol_assignments",
+    state.assignments.map((assignment) => ({
+      id: assignment.id,
+      battle_id: assignment.battleId,
+      judge_artist_id: assignment.judgeArtistId,
+      status: assignment.status,
+      assigned_at: assignment.assignedAt,
+      opened_at: assignment.openedAt,
+      due_at: assignment.dueAt,
+      completed_at: assignment.completedAt,
+    })),
+  );
+
+  await insert(
+    "protocol_judgments",
+    state.judgments.map((judgment) => ({
+      id: judgment.id,
+      assignment_id: judgment.assignmentId,
+      battle_id: judgment.battleId,
+      judge_artist_id: judgment.judgeArtistId,
+      lyrics: judgment.scores.lyrics,
+      delivery: judgment.scores.delivery,
+      originality: judgment.scores.originality,
+      flow: judgment.scores.flow,
+      impact: judgment.scores.impact,
+      selected_winner_artist_id: judgment.selectedWinnerArtistId,
+      created_at: judgment.createdAt,
+    })),
+  );
+
+  await insert(
+    "protocol_wallet_ledger",
+    state.walletLedger.map((entry) => ({
+      id: entry.id,
+      artist_id: entry.artistId,
+      event_id: entry.eventId,
+      amount_cents: entry.amountCents,
+      type: entry.type,
+      note: entry.note,
+      created_at: entry.createdAt,
+    })),
+  );
+}
+
+async function loadState() {
+  return getSupabaseAdmin() ? readSupabaseState() : readPilotState();
+}
+
+async function persistState(state: ProtocolState) {
+  if (getSupabaseAdmin()) {
+    await writeSupabaseState(state);
+    return;
+  }
+
+  await writePilotState(state);
+}
+
 async function readPayload() {
-  const state = await readPilotState();
-  return summarize(state);
+  return summarize(await loadState());
 }
 
 export async function GET() {
@@ -213,11 +534,16 @@ export async function POST(request: Request) {
   }
 
   if (action === "reset") {
-    await resetPilotState();
+    const nextState = structuredClone(seedPilotState);
+    if (getSupabaseAdmin()) {
+      await writeSupabaseState(nextState);
+    } else {
+      await resetPilotState();
+    }
     return NextResponse.json(await readPayload());
   }
 
-  const state = await readPilotState();
+  const state = await loadState();
 
   try {
     if (action === "deposit") {
@@ -525,7 +851,7 @@ export async function POST(request: Request) {
       }
     }
 
-    await writePilotState(state);
+    await persistState(state);
     return NextResponse.json(await readPayload());
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Protocol action failed." }, { status: 500 });

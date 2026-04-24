@@ -8,9 +8,9 @@ This pilot now models the Artist Arcade battle protocol:
 - Single-elimination bracket per event.
 - 4 rounds per event: 16 -> 8 -> 4 -> 2 -> 1 winner.
 - 15 battles per full event bracket, 60 total battles across the 4-event MVP.
-- Artists pay one fifth of the desired prize to enter.
-- Winner receives the desired prize.
-- Remaining event pot becomes company revenue.
+- For the pilot, each artist pays $1 to enter.
+- For the pilot, the winner receives $5.
+- The remaining event pot becomes company revenue.
 - Submissions must be 3 minutes or less.
 - Artists have 24 hours to submit after a queue closes.
 - Judges have a 15-minute timer after opening an assignment.

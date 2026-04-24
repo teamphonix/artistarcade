@@ -20,6 +20,8 @@ type Entry = {
   paidCents: number;
   status: string;
   artist?: Artist;
+  wins?: number;
+  losses?: number;
 };
 
 type Battle = {
@@ -61,7 +63,7 @@ type EventSummary = {
   winnerArtistId: string | null;
   companyRevenueCents: number;
   entries: Entry[];
-  standings: Array<Entry & { wins: number; losses: number }>;
+  standings: Entry[];
   battles: Battle[];
   assignmentsTotal: number;
   assignmentsCompleted: number;
@@ -112,12 +114,12 @@ type ProtocolPayload = {
   scoreCategories: Array<{ key: string; label: string; weight: number }>;
 };
 
-const defaultScores = {
-  lyrics: 8,
-  delivery: 8,
-  originality: 8,
-  flow: 8,
-  impact: 8,
+const hiddenScores = {
+  lyrics: 10,
+  delivery: 10,
+  originality: 10,
+  flow: 10,
+  impact: 10,
 };
 
 function money(cents: number) {
@@ -132,13 +134,35 @@ function shortTime(date: string | null) {
   return new Date(date).toLocaleString([], { dateStyle: "short", timeStyle: "short" });
 }
 
+function relativeCountdown(date: string | null) {
+  if (!date) {
+    return "Awaiting trigger";
+  }
+
+  const diff = new Date(date).getTime() - Date.now();
+  if (diff <= 0) {
+    return "Ready now";
+  }
+
+  const minutes = Math.ceil(diff / 60000);
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return `${hours}h ${rest}m`;
+}
+
 export default function ArenaPage() {
   const [payload, setPayload] = useState<ProtocolPayload | null>(null);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
+  const [viewMode, setViewMode] = useState<"artist" | "host">("artist");
   const [selectedEventId, setSelectedEventId] = useState("event-1");
-  const [deposit, setDeposit] = useState({ name: "", email: "", amountCents: 10000 });
+  const [artistViewId, setArtistViewId] = useState("artist-1");
+  const [deposit, setDeposit] = useState({ name: "", email: "", amountCents: 100 });
   const [join, setJoin] = useState({ artistId: "artist-1", eventId: "event-1" });
   const [submission, setSubmission] = useState({
     artistId: "artist-1",
@@ -147,11 +171,11 @@ export default function ArenaPage() {
     audioUrl: "",
     durationSeconds: 180,
   });
-  const [judging, setJudging] = useState({
+  const [hostJudging, setHostJudging] = useState({
     assignmentId: "",
     selectedWinnerArtistId: "",
-    scores: defaultScores,
   });
+  const [artistChoice, setArtistChoice] = useState("");
 
   async function loadProtocol() {
     const response = await fetch("/api/pilot", { cache: "no-store" });
@@ -165,6 +189,7 @@ export default function ArenaPage() {
     const firstEvent = data.events[0]?.id || "event-1";
     const firstArtist = data.artists[0]?.id || "";
     setSelectedEventId((current) => current || firstEvent);
+    setArtistViewId((current) => current || firstArtist);
     setJoin((current) => ({ ...current, artistId: current.artistId || firstArtist, eventId: current.eventId || firstEvent }));
     setSubmission((current) => ({
       ...current,
@@ -223,12 +248,39 @@ export default function ArenaPage() {
     void postProtocol("submit", submission);
   }
 
-  function handleJudgment(event: FormEvent<HTMLFormElement>) {
+  function handleHostJudgment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void postProtocol("judge", judging);
+    void postProtocol("judge", {
+      assignmentId: hostJudging.assignmentId,
+      selectedWinnerArtistId: hostJudging.selectedWinnerArtistId,
+      scores: hiddenScores,
+    });
+  }
+
+  function handleArtistVote(event: FormEvent<HTMLFormElement>, assignmentId: string) {
+    event.preventDefault();
+    if (!artistChoice) {
+      return;
+    }
+
+    void postProtocol("judge", {
+      assignmentId,
+      selectedWinnerArtistId: artistChoice,
+      scores: hiddenScores,
+    });
   }
 
   const selectedEvent = payload?.events.find((event) => event.id === selectedEventId) || payload?.events[0];
+  const artistMap = useMemo(() => new Map(payload?.artists.map((artist) => [artist.id, artist]) || []), [payload]);
+  const artistEvent = payload?.events.find((event) => event.entries.some((entry) => entry.artistId === artistViewId));
+  const artistSubmission = payload?.submissions.find(
+    (entry) => entry.artistId === artistViewId && entry.eventId === artistEvent?.id && entry.round === artistEvent?.currentRound,
+  );
+  const artistAssignment = payload?.assignments.find(
+    (assignment) =>
+      assignment.judgeArtistId === artistViewId && (assignment.status === "assigned" || assignment.status === "opened"),
+  );
+  const artistBattle = payload?.battles.find((battle) => battle.id === artistAssignment?.battleId);
   const availableAssignments = useMemo(() => {
     if (!payload) {
       return [];
@@ -236,9 +288,8 @@ export default function ArenaPage() {
 
     return payload.assignments.filter((assignment) => assignment.status === "assigned" || assignment.status === "opened");
   }, [payload]);
-  const selectedAssignment = payload?.assignments.find((assignment) => assignment.id === judging.assignmentId);
+  const selectedAssignment = payload?.assignments.find((assignment) => assignment.id === hostJudging.assignmentId);
   const selectedBattle = payload?.battles.find((battle) => battle.id === selectedAssignment?.battleId);
-  const artistMap = useMemo(() => new Map(payload?.artists.map((artist) => [artist.id, artist]) || []), [payload]);
 
   if (isLoading) {
     return <main className="pilot-page">Loading battle protocol...</main>;
@@ -261,32 +312,31 @@ export default function ArenaPage() {
         </Link>
         <div>
           <span className="pilot-kicker">Artist Arcade Battle Protocol</span>
-          <h1>64 Artist MVP</h1>
+          <h1>{viewMode === "artist" ? "Artist Arena" : "Host Console"}</h1>
           <p>
-            Four 16-artist rap events. Single elimination. Four rounds per bracket. Outside-event judging only. Winner
-            receives the desired prize, and the remainder is company revenue.
+            {viewMode === "artist"
+              ? "From the artist side this feels simple: put up $1, submit your track, decide who was better when called, and wait for the final reveal."
+              : "Host mode exposes the full engine: event queues, hidden bracket state, cross-event judging assignments, progression, and payout control."}
           </p>
         </div>
         <div className="pilot-status">
-          <strong>{payload.backend}</strong>
-          <span>{payload.settings.judgingWindowMinutes} min judging timer</span>
+          <strong>{viewMode === "artist" ? "1 in 5" : payload.backend}</strong>
+          <span>{payload.settings.judgingWindowMinutes} min decision window</span>
         </div>
       </section>
 
       <section className="pilot-metrics" aria-label="Protocol metrics">
         <article>
-          <span>Artists</span>
-          <strong>
-            {payload.totals.entries}/{payload.totals.eventCapacity}
-          </strong>
+          <span>Entry</span>
+          <strong>$1</strong>
+        </article>
+        <article>
+          <span>Prize</span>
+          <strong>$5</strong>
         </article>
         <article>
           <span>Events</span>
           <strong>{payload.settings.eventCount}</strong>
-        </article>
-        <article>
-          <span>Full bracket battles</span>
-          <strong>{payload.totals.totalBattlesFullBracket}</strong>
         </article>
         <article>
           <span>Judging</span>
@@ -295,287 +345,462 @@ export default function ArenaPage() {
           </strong>
         </article>
         <article>
-          <span>Company rev</span>
-          <strong>{money(payload.totals.companyRevenueCents)}</strong>
+          <span>Reveal</span>
+          <strong>{payload.totals.completedBattles}/60</strong>
         </article>
       </section>
 
       {message ? <p className="pilot-message">{message}</p> : null}
 
-      <section className="pilot-tabs" aria-label="MVP events">
-        {payload.events.map((event) => (
-          <button
-            className={event.id === selectedEvent.id ? "is-active" : ""}
-            key={event.id}
-            onClick={() => {
-              setSelectedEventId(event.id);
-              setJoin((current) => ({ ...current, eventId: event.id }));
-              setSubmission((current) => ({ ...current, eventId: event.id }));
-            }}
-            type="button"
-          >
-            {event.title}
-          </button>
-        ))}
+      <section className="pilot-view-switch" aria-label="View mode">
+        <button
+          className={viewMode === "artist" ? "is-active" : ""}
+          onClick={() => setViewMode("artist")}
+          type="button"
+        >
+          Artist Side
+        </button>
+        <button className={viewMode === "host" ? "is-active" : ""} onClick={() => setViewMode("host")} type="button">
+          Host Side
+        </button>
       </section>
 
-      <section className="pilot-grid protocol-grid">
-        <form className="pilot-card" onSubmit={handleDeposit}>
-          <span className="pilot-step">01 Wallet</span>
-          <h2>Deposit funds</h2>
-          <label>
-            Artist name
-            <input value={deposit.name} onChange={(event) => setDeposit({ ...deposit, name: event.target.value })} />
-          </label>
-          <label>
-            Email
-            <input
-              type="email"
-              value={deposit.email}
-              onChange={(event) => setDeposit({ ...deposit, email: event.target.value })}
-            />
-          </label>
-          <label>
-            Amount
-            <input
-              min="100"
-              step="100"
-              type="number"
-              value={deposit.amountCents}
-              onChange={(event) => setDeposit({ ...deposit, amountCents: Number(event.target.value) })}
-            />
-          </label>
-          <button disabled={isBusy} type="submit">
-            Add wallet funds
-          </button>
-        </form>
+      {viewMode === "artist" ? (
+        <>
+          <section className="pilot-grid artist-grid">
+            <article className="pilot-card artist-card">
+              <span className="pilot-step">01 Identity</span>
+              <h2>Demo artist</h2>
+              <label>
+                Artist profile
+                <select value={artistViewId} onChange={(event) => setArtistViewId(event.target.value)}>
+                  {payload.artists.map((artist) => (
+                    <option key={artist.id} value={artist.id}>
+                      {artist.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="artist-stat-stack">
+                <span>Wallet {money(artistMap.get(artistViewId)?.walletCents || 0)}</span>
+                <span>Status {artistMap.get(artistViewId)?.status || "waiting"}</span>
+                <span>Event {artistEvent?.title || "Not entered yet"}</span>
+              </div>
+            </article>
 
-        <form className="pilot-card" onSubmit={handleJoin}>
-          <span className="pilot-step">02 Queue</span>
-          <h2>Join 16-artist event</h2>
-          <label>
-            Artist
-            <select value={join.artistId} onChange={(event) => setJoin({ ...join, artistId: event.target.value })}>
-              {payload.artists.map((artist) => (
-                <option key={artist.id} value={artist.id}>
-                  {artist.name} - {money(artist.walletCents)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p>
-            {selectedEvent.queuedCount}/16 queued. Entry is {money(selectedEvent.entryFeeCents)}, which is one fifth of
-            the {money(selectedEvent.desiredPrizeCents)} prize.
-          </p>
-          <button disabled={isBusy || selectedEvent.phase !== "queue"} type="submit">
-            Join selected event
-          </button>
-          <button
-            disabled={isBusy || selectedEvent.queuedCount !== 16}
-            onClick={() => postProtocol("closeQueue", { eventId: selectedEvent.id })}
-            type="button"
-          >
-            Close queue and start 24h clock
-          </button>
-        </form>
+            <article className="pilot-card artist-card">
+              <span className="pilot-step">02 Event</span>
+              <h2>1 in 5 wins the prize</h2>
+              <p>
+                Enter the event with $1. Submit your track when the challenge opens. If your work keeps getting chosen
+                as the stronger submission, you stay alive until the final reveal.
+              </p>
+              <div className="artist-stat-stack">
+                <span>Prize {money(artistEvent?.desiredPrizeCents || 500)}</span>
+                <span>Current challenge {artistEvent?.challengeTitle || selectedEvent.challengeTitle}</span>
+                <span>Submission clock {relativeCountdown(artistEvent?.submissionDeadline || null)}</span>
+              </div>
+            </article>
 
-        <form className="pilot-card" onSubmit={handleSubmission}>
-          <span className="pilot-step">03 Submission</span>
-          <h2>Upload round entree</h2>
-          <label>
-            Artist
-            <select
-              value={submission.artistId}
-              onChange={(event) => setSubmission({ ...submission, artistId: event.target.value })}
+            <form className="pilot-card artist-card" onSubmit={handleSubmission}>
+              <span className="pilot-step">03 Submit</span>
+              <h2>Your track</h2>
+              <label>
+                Event
+                <select
+                  value={submission.eventId}
+                  onChange={(event) => setSubmission({ ...submission, eventId: event.target.value })}
+                >
+                  {payload.events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Title
+                <input value={submission.title} onChange={(event) => setSubmission({ ...submission, title: event.target.value })} />
+              </label>
+              <label>
+                Audio URL
+                <input
+                  value={submission.audioUrl}
+                  onChange={(event) => setSubmission({ ...submission, audioUrl: event.target.value })}
+                />
+              </label>
+              <label>
+                Length in seconds
+                <input
+                  max={payload.settings.submissionLimitSeconds}
+                  min="1"
+                  type="number"
+                  value={submission.durationSeconds}
+                  onChange={(event) => setSubmission({ ...submission, durationSeconds: Number(event.target.value) })}
+                />
+              </label>
+              <button
+                disabled={isBusy}
+                onClick={() => setSubmission((current) => ({ ...current, artistId: artistViewId, eventId: artistEvent?.id || current.eventId }))}
+                type="submit"
+              >
+                Save submission
+              </button>
+              <p className="artist-muted">
+                {artistSubmission ? `Saved: ${artistSubmission.title}` : "No current round submission saved yet."}
+              </p>
+            </form>
+          </section>
+
+          <section className="artist-flow-grid">
+            <article className="pilot-panel artist-panel">
+              <h2>State</h2>
+              <div className="artist-wait-card">
+                <strong>
+                  {artistAssignment
+                    ? "Decision ready"
+                    : artistEvent?.phase === "complete"
+                      ? "Final reveal pending"
+                      : "Awaiting next matchup"}
+                </strong>
+                <p>
+                  {artistAssignment
+                    ? "Listen to both artists and choose who felt stronger. Once you submit, the system advances the winner and prepares the next available matchup."
+                    : "Arena recalibrating. Stay ready. Your next assignment appears only when the system needs your vote."}
+                </p>
+                <span>
+                  {artistAssignment ? `Decision window ${relativeCountdown(artistAssignment.dueAt)}` : "Stand by for next call"}
+                </span>
+              </div>
+            </article>
+
+            <article className="pilot-panel artist-panel">
+              <h2>Duty Cycle</h2>
+              <div className="artist-duty">
+                {[1, 2, 3, 4].map((round) => {
+                  const roundDone = payload.judgments.some((judgment) => {
+                    const assignment = payload.assignments.find((entry) => entry.id === judgment.assignmentId);
+                    const battle = payload.battles.find((entry) => entry.id === assignment?.battleId);
+                    return judgment.judgeArtistId === artistViewId && battle?.round === round;
+                  });
+
+                  return (
+                    <div className="artist-duty-step" key={round}>
+                      <strong>Round {round}</strong>
+                      <span>{roundDone ? "Decision made" : "Waiting"}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          </section>
+
+          <section className="artist-judge-surface">
+            <form
+              className="artist-binary-card"
+              key={artistAssignment?.id || "waiting"}
+              onSubmit={(event) => handleArtistVote(event, artistAssignment?.id || "")}
             >
-              {selectedEvent.entries.map((entry) => (
-                <option key={entry.id} value={entry.artistId}>
-                  {entry.artist?.name || entry.artistId}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Track title
-            <input value={submission.title} onChange={(event) => setSubmission({ ...submission, title: event.target.value })} />
-          </label>
-          <label>
-            MP3 or audio URL
-            <input value={submission.audioUrl} onChange={(event) => setSubmission({ ...submission, audioUrl: event.target.value })} />
-          </label>
-          <label>
-            Length in seconds
-            <input
-              max={payload.settings.submissionLimitSeconds}
-              min="1"
-              type="number"
-              value={submission.durationSeconds}
-              onChange={(event) => setSubmission({ ...submission, durationSeconds: Number(event.target.value) })}
-            />
-          </label>
-          <button disabled={isBusy || selectedEvent.phase === "queue"} type="submit">
-            Save submission
-          </button>
-        </form>
-
-        <section className="pilot-card">
-          <span className="pilot-step">04 Assign</span>
-          <h2>Cross-event judges</h2>
-          <p>
-            Judges are pulled from other events only. They cannot judge a battle in their own event or a battle involving
-            their own submission.
-          </p>
-          <button
-            disabled={isBusy || selectedEvent.phase === "queue"}
-            onClick={() => postProtocol("generateJudgeAssignments", { eventId: selectedEvent.id })}
-            type="button"
-          >
-            Generate assignments
-          </button>
-          <button disabled={isBusy} onClick={() => postProtocol("finalizeRound", { eventId: selectedEvent.id })} type="button">
-            Finalize round
-          </button>
-          <button disabled={isBusy} onClick={() => postProtocol("reset")} type="button">
-            Reset demo
-          </button>
-        </section>
-      </section>
-
-      <section className="pilot-columns">
-        <article className="pilot-panel">
-          <h2>{selectedEvent.title} protocol</h2>
-          <div className="protocol-summary">
-            <span>Phase: {selectedEvent.phase}</span>
-            <span>Round: {selectedEvent.currentRound}</span>
-            <span>Submission deadline: {shortTime(selectedEvent.submissionDeadline)}</span>
-            <span>Judging deadline: {shortTime(selectedEvent.judgingDeadline)}</span>
-            <span>Challenge audio: {selectedEvent.challengeAudioUrl}</span>
-          </div>
-          <p>{selectedEvent.challengeDescription}</p>
-        </article>
-
-        <form className="pilot-panel" onSubmit={handleJudgment}>
-          <h2>Cast assigned vote</h2>
-          <label>
-            Assignment
-            <select
-              value={judging.assignmentId}
-              onChange={(event) => {
-                const assignment = payload.assignments.find((entry) => entry.id === event.target.value);
-                const battle = payload.battles.find((entry) => entry.id === assignment?.battleId);
-                setJudging({
-                  ...judging,
-                  assignmentId: event.target.value,
-                  selectedWinnerArtistId: battle?.artistAId || "",
-                });
-              }}
-            >
-              <option value="">Select assignment</option>
-              {availableAssignments.map((assignment) => {
-                const battle = payload.battles.find((entry) => entry.id === assignment.battleId);
-                return (
-                  <option key={assignment.id} value={assignment.id}>
-                    {artistMap.get(assignment.judgeArtistId)?.name} judges {artistMap.get(battle?.artistAId || "")?.name} vs{" "}
-                    {artistMap.get(battle?.artistBId || "")?.name}
-                  </option>
-                );
-              })}
-            </select>
-          </label>
-          <button
-            disabled={isBusy || !judging.assignmentId}
-            onClick={() => postProtocol("openAssignment", { assignmentId: judging.assignmentId })}
-            type="button"
-          >
-            Open 15-minute timer
-          </button>
-          <label>
-            Winner
-            <select
-              value={judging.selectedWinnerArtistId}
-              onChange={(event) => setJudging({ ...judging, selectedWinnerArtistId: event.target.value })}
-            >
-              {selectedBattle ? (
+              <span className="pilot-step">04 Judge</span>
+              <h2>{artistAssignment ? "Who felt stronger?" : "No active matchup"}</h2>
+              {artistAssignment && artistBattle ? (
                 <>
-                  <option value={selectedBattle.artistAId}>{artistMap.get(selectedBattle.artistAId)?.name}</option>
-                  <option value={selectedBattle.artistBId}>{artistMap.get(selectedBattle.artistBId)?.name}</option>
+                  <div className="artist-versus">
+                    {[artistBattle.artistAId, artistBattle.artistBId].map((artistId) => (
+                      <button
+                        className={artistChoice === artistId ? "is-picked" : ""}
+                        key={artistId}
+                        onClick={() => setArtistChoice(artistId)}
+                        type="button"
+                      >
+                        <span>Artist</span>
+                        <strong>{artistMap.get(artistId)?.name}</strong>
+                        <em>Select</em>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="artist-judge-actions">
+                    <button
+                      disabled={isBusy || !artistAssignment || artistAssignment.status !== "assigned"}
+                      onClick={() => postProtocol("openAssignment", { assignmentId: artistAssignment.id })}
+                      type="button"
+                    >
+                      Open decision window
+                    </button>
+                    <button disabled={isBusy || !artistChoice} type="submit">
+                      Submit decision
+                    </button>
+                  </div>
                 </>
-              ) : null}
-            </select>
-          </label>
-          {payload.scoreCategories.map((category) => (
-            <label key={category.key}>
-              {category.label} ({category.weight}%)
-              <input
-                max="10"
-                min="1"
-                type="number"
-                value={judging.scores[category.key as keyof typeof defaultScores]}
-                onChange={(event) =>
-                  setJudging({
-                    ...judging,
-                    scores: { ...judging.scores, [category.key]: Number(event.target.value) },
-                  })
-                }
-              />
-            </label>
-          ))}
-          <button disabled={isBusy || !selectedBattle} type="submit">
-            Submit vote
-          </button>
-        </form>
-
-        <article className="pilot-panel">
-          <h2>Queue and standings</h2>
-          <div className="pilot-table">
-            {selectedEvent.standings.map((entry) => (
-              <div className="pilot-row" key={entry.id}>
-                <strong>
-                  #{entry.seed} {entry.artist?.name}
-                </strong>
-                <span>{entry.status}</span>
-                <span>
-                  {entry.wins}-{entry.losses}
-                </span>
-                <span>{money(entry.paidCents)}</span>
-              </div>
+              ) : (
+                <div className="artist-empty-state">
+                  <strong>Arena recalibrating...</strong>
+                  <span>Next matchup being prepared.</span>
+                </div>
+              )}
+            </form>
+          </section>
+        </>
+      ) : (
+        <>
+          <section className="pilot-tabs" aria-label="MVP events">
+            {payload.events.map((event) => (
+              <button
+                className={event.id === selectedEvent.id ? "is-active" : ""}
+                key={event.id}
+                onClick={() => {
+                  setSelectedEventId(event.id);
+                  setJoin((current) => ({ ...current, eventId: event.id }));
+                  setSubmission((current) => ({ ...current, eventId: event.id }));
+                }}
+                type="button"
+              >
+                {event.title}
+              </button>
             ))}
-          </div>
-        </article>
+          </section>
 
-        <article className="pilot-panel">
-          <h2>Round battles</h2>
-          <div className="pilot-table">
-            {selectedEvent.battles.map((battle) => (
-              <div className="pilot-row" key={battle.id}>
-                <strong>
-                  R{battle.round}.{battle.slot}
-                </strong>
-                <span>
-                  {artistMap.get(battle.artistAId)?.name} vs {artistMap.get(battle.artistBId)?.name}
-                </span>
-                <span>{battle.status}</span>
-                <span>{battle.winnerArtistId ? artistMap.get(battle.winnerArtistId)?.name : "TBD"}</span>
-              </div>
-            ))}
-          </div>
-        </article>
+          <section className="pilot-grid protocol-grid">
+            <form className="pilot-card" onSubmit={handleDeposit}>
+              <span className="pilot-step">01 Wallet</span>
+              <h2>Deposit funds</h2>
+              <label>
+                Artist name
+                <input value={deposit.name} onChange={(event) => setDeposit({ ...deposit, name: event.target.value })} />
+              </label>
+              <label>
+                Email
+                <input
+                  type="email"
+                  value={deposit.email}
+                  onChange={(event) => setDeposit({ ...deposit, email: event.target.value })}
+                />
+              </label>
+              <label>
+                Amount
+                <input
+                  min="100"
+                  step="100"
+                  type="number"
+                  value={deposit.amountCents}
+                  onChange={(event) => setDeposit({ ...deposit, amountCents: Number(event.target.value) })}
+                />
+              </label>
+              <button disabled={isBusy} type="submit">
+                Add wallet funds
+              </button>
+            </form>
 
-        <article className="pilot-panel pilot-panel-wide">
-          <h2>Artist wallets</h2>
-          <div className="pilot-assignment-grid">
-            {payload.artists.slice(0, 64).map((artist) => (
-              <div className="pilot-assignment" key={artist.id}>
-                <strong>{artist.name}</strong>
-                <span>{artist.status}</span>
-                <em>
-                  Wallet {money(artist.walletCents)} / Rewards {money(artist.rewardCents)}
-                </em>
+            <form className="pilot-card" onSubmit={handleJoin}>
+              <span className="pilot-step">02 Queue</span>
+              <h2>Join hidden bracket</h2>
+              <label>
+                Artist
+                <select value={join.artistId} onChange={(event) => setJoin({ ...join, artistId: event.target.value })}>
+                  {payload.artists.map((artist) => (
+                    <option key={artist.id} value={artist.id}>
+                      {artist.name} - {money(artist.walletCents)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p>
+                Host view keeps the real queue visible. Front end never shows the 16-artist structure to participants.
+              </p>
+              <button disabled={isBusy || selectedEvent.phase !== "queue"} type="submit">
+                Join selected event
+              </button>
+              <button
+                disabled={isBusy || selectedEvent.queuedCount !== 16}
+                onClick={() => postProtocol("closeQueue", { eventId: selectedEvent.id })}
+                type="button"
+              >
+                Close queue and start 24h clock
+              </button>
+            </form>
+
+            <form className="pilot-card" onSubmit={handleSubmission}>
+              <span className="pilot-step">03 Submission</span>
+              <h2>Upload round entree</h2>
+              <label>
+                Artist
+                <select
+                  value={submission.artistId}
+                  onChange={(event) => setSubmission({ ...submission, artistId: event.target.value })}
+                >
+                  {selectedEvent.entries.map((entry) => (
+                    <option key={entry.id} value={entry.artistId}>
+                      {entry.artist?.name || entry.artistId}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Track title
+                <input value={submission.title} onChange={(event) => setSubmission({ ...submission, title: event.target.value })} />
+              </label>
+              <label>
+                MP3 or audio URL
+                <input value={submission.audioUrl} onChange={(event) => setSubmission({ ...submission, audioUrl: event.target.value })} />
+              </label>
+              <label>
+                Length in seconds
+                <input
+                  max={payload.settings.submissionLimitSeconds}
+                  min="1"
+                  type="number"
+                  value={submission.durationSeconds}
+                  onChange={(event) => setSubmission({ ...submission, durationSeconds: Number(event.target.value) })}
+                />
+              </label>
+              <button disabled={isBusy || selectedEvent.phase === "queue"} type="submit">
+                Save submission
+              </button>
+            </form>
+
+            <section className="pilot-card">
+              <span className="pilot-step">04 Assign</span>
+              <h2>Assignment engine</h2>
+              <p>
+                Secret sauce stays here: full queue, round transitions, cross-event assignments, binary front end, and
+                delayed reveal.
+              </p>
+              <button
+                disabled={isBusy || selectedEvent.phase === "queue"}
+                onClick={() => postProtocol("generateJudgeAssignments", { eventId: selectedEvent.id })}
+                type="button"
+              >
+                Generate assignments
+              </button>
+              <button disabled={isBusy} onClick={() => postProtocol("finalizeRound", { eventId: selectedEvent.id })} type="button">
+                Finalize round
+              </button>
+              <button disabled={isBusy} onClick={() => postProtocol("reset")} type="button">
+                Reset demo
+              </button>
+            </section>
+          </section>
+
+          <section className="pilot-columns">
+            <article className="pilot-panel">
+              <h2>{selectedEvent.title} protocol</h2>
+              <div className="protocol-summary">
+                <span>Phase: {selectedEvent.phase}</span>
+                <span>Round: {selectedEvent.currentRound}</span>
+                <span>Queued: {selectedEvent.queuedCount}/16</span>
+                <span>Submission deadline: {shortTime(selectedEvent.submissionDeadline)}</span>
+                <span>Judging deadline: {shortTime(selectedEvent.judgingDeadline)}</span>
+                <span>Challenge audio: {selectedEvent.challengeAudioUrl}</span>
               </div>
-            ))}
-          </div>
-        </article>
-      </section>
+              <p>{selectedEvent.challengeDescription}</p>
+            </article>
+
+            <form className="pilot-panel" onSubmit={handleHostJudgment}>
+              <h2>Host judgment override</h2>
+              <label>
+                Assignment
+                <select
+                  value={hostJudging.assignmentId}
+                  onChange={(event) => {
+                    const assignment = payload.assignments.find((entry) => entry.id === event.target.value);
+                    const battle = payload.battles.find((entry) => entry.id === assignment?.battleId);
+                    setHostJudging({
+                      assignmentId: event.target.value,
+                      selectedWinnerArtistId: battle?.artistAId || "",
+                    });
+                  }}
+                >
+                  <option value="">Select assignment</option>
+                  {availableAssignments.map((assignment) => {
+                    const battle = payload.battles.find((entry) => entry.id === assignment.battleId);
+                    return (
+                      <option key={assignment.id} value={assignment.id}>
+                        {artistMap.get(assignment.judgeArtistId)?.name} judges {artistMap.get(battle?.artistAId || "")?.name} vs{" "}
+                        {artistMap.get(battle?.artistBId || "")?.name}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+              <button
+                disabled={isBusy || !hostJudging.assignmentId}
+                onClick={() => postProtocol("openAssignment", { assignmentId: hostJudging.assignmentId })}
+                type="button"
+              >
+                Open 15-minute timer
+              </button>
+              <label>
+                Winner
+                <select
+                  value={hostJudging.selectedWinnerArtistId}
+                  onChange={(event) => setHostJudging({ ...hostJudging, selectedWinnerArtistId: event.target.value })}
+                >
+                  {selectedBattle ? (
+                    <>
+                      <option value={selectedBattle.artistAId}>{artistMap.get(selectedBattle.artistAId)?.name}</option>
+                      <option value={selectedBattle.artistBId}>{artistMap.get(selectedBattle.artistBId)?.name}</option>
+                    </>
+                  ) : null}
+                </select>
+              </label>
+              <button disabled={isBusy || !selectedBattle} type="submit">
+                Submit binary decision
+              </button>
+            </form>
+
+            <article className="pilot-panel">
+              <h2>Queue and standings</h2>
+              <div className="pilot-table">
+                {selectedEvent.standings.map((entry) => (
+                  <div className="pilot-row" key={entry.id}>
+                    <strong>
+                      #{entry.seed} {entry.artist?.name}
+                    </strong>
+                    <span>{entry.status}</span>
+                    <span>
+                      {entry.wins || 0}-{entry.losses || 0}
+                    </span>
+                    <span>{money(entry.paidCents)}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="pilot-panel">
+              <h2>Round battles</h2>
+              <div className="pilot-table">
+                {selectedEvent.battles.map((battle) => (
+                  <div className="pilot-row" key={battle.id}>
+                    <strong>
+                      R{battle.round}.{battle.slot}
+                    </strong>
+                    <span>
+                      {artistMap.get(battle.artistAId)?.name} vs {artistMap.get(battle.artistBId)?.name}
+                    </span>
+                    <span>{battle.status}</span>
+                    <span>{battle.winnerArtistId ? artistMap.get(battle.winnerArtistId)?.name : "TBD"}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="pilot-panel pilot-panel-wide">
+              <h2>Artist wallets</h2>
+              <div className="pilot-assignment-grid">
+                {payload.artists.slice(0, 64).map((artist) => (
+                  <div className="pilot-assignment" key={artist.id}>
+                    <strong>{artist.name}</strong>
+                    <span>{artist.status}</span>
+                    <em>
+                      Wallet {money(artist.walletCents)} / Rewards {money(artist.rewardCents)}
+                    </em>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </section>
+        </>
+      )}
     </main>
   );
 }

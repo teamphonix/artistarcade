@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { randomUUID } from "crypto";
 
 export const ARTISTS_PER_EVENT = 16;
 export const MVP_EVENT_COUNT = 4;
@@ -138,11 +139,11 @@ export type ProtocolState = {
   walletLedger: WalletLedgerEntry[];
 };
 
-const dataDirectory = path.join(process.cwd(), "data");
+const dataDirectory = process.env.VERCEL ? "/tmp/artistarcade-data" : path.join(process.cwd(), "data");
 const pilotPath = path.join(dataDirectory, "pilot-state.json");
 
-export function makeId(prefix: string) {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+export function makeId() {
+  return randomUUID();
 }
 
 function isoPlus(hours = 0, minutes = 0) {
@@ -152,11 +153,15 @@ function isoPlus(hours = 0, minutes = 0) {
   return date.toISOString();
 }
 
+function seedUuid(index: number) {
+  return `00000000-0000-4000-8000-${index.toString(16).padStart(12, "0")}`;
+}
+
 const seedArtists: ProtocolArtist[] = Array.from({ length: TOTAL_MVP_ARTISTS }, (_, index) => ({
-  id: `artist-${index + 1}`,
+  id: seedUuid(index + 1),
   name: `Pilot Artist ${index + 1}`,
   email: `artist${index + 1}@example.com`,
-  walletCents: 10000,
+  walletCents: 100,
   rewardCents: 0,
   status: "registered",
   createdAt: isoPlus(0, index),
@@ -165,12 +170,12 @@ const seedArtists: ProtocolArtist[] = Array.from({ length: TOTAL_MVP_ARTISTS }, 
 const eventTitles = ["Lyrical Onslaught", "Story Mode", "Beat Talk", "Persona Pen"];
 
 const seedEvents: ProtocolEvent[] = eventTitles.map((title, index) => ({
-  id: `event-${index + 1}`,
+  id: seedUuid(101 + index),
   title,
   eventType: "rap",
-  creatorArtistId: "artist-1",
-  desiredPrizeCents: 50000,
-  entryFeeCents: 10000,
+  creatorArtistId: seedArtists[0].id,
+  desiredPrizeCents: 500,
+  entryFeeCents: 100,
   challengeTitle: `${title}: Round 1`,
   challengeDescription:
     "Create an original rap performance to the provided MP3. Maximum length is 3 minutes. Clean delivery, original writing, and impact decide the bracket.",
