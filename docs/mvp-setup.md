@@ -25,10 +25,11 @@ This pilot now models the Artist Arcade battle protocol:
 3. Run `supabase/schema.sql`.
 4. Copy the project URL into `NEXT_PUBLIC_SUPABASE_URL`.
 5. Copy the service role key into `SUPABASE_SERVICE_ROLE_KEY`.
+6. Optional: set `SUPABASE_SUBMISSIONS_BUCKET=submissions` if you want a custom bucket name.
 
 The app uses server routes for database writes, so the service role key must stay server-side and must never be exposed in browser code.
 
-The current `/arena` implementation runs this full protocol in local demo mode while the Supabase adapter is being completed against the new protocol schema. That lets the pilot flow be tested before live credentials are connected.
+The `/arena` protocol route now uses Supabase in production when the env vars are present, and falls back to local demo state only when Supabase is not configured. Submission uploads use a Supabase Storage bucket named `submissions` by default and will auto-create it when the upload route runs with a service role key.
 
 ## Stripe
 

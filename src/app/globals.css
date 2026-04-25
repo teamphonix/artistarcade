@@ -1490,6 +1490,12 @@ button {
   text-align: left;
 }
 
+.artist-versus button audio,
+.judge-playback-card audio {
+  margin-top: 0.35rem;
+  width: 100%;
+}
+
 .artist-versus button span,
 .artist-versus button em {
   color: var(--muted);
@@ -1510,6 +1516,12 @@ button {
 .artist-versus button:hover {
   border-color: rgba(255, 224, 154, 0.8);
   box-shadow: 0 0 24px rgba(255, 205, 91, 0.14);
+}
+
+.artist-versus button small,
+.judge-playback-card small {
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 .artist-judge-actions {
@@ -1551,6 +1563,37 @@ button {
   color: var(--purple);
   font-style: normal;
   text-transform: uppercase;
+}
+
+.judge-playback-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 1rem 0;
+}
+
+.judge-playback-card {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 205, 91, 0.24);
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+}
+
+.judge-playback-card span,
+.judge-playback-card em {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.judge-playback-card strong {
+  color: var(--gold-bright);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.3rem;
+  line-height: 1;
 }
 
 @keyframes portalSpin {

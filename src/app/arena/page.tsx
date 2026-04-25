@@ -171,6 +171,8 @@ export default function ArenaPage() {
     audioUrl: "",
     durationSeconds: 180,
   });
+  const [submissionFile, setSubmissionFile] = useState<File | null>(null);
+  const [uploadLabel, setUploadLabel] = useState("");
   const [hostJudging, setHostJudging] = useState({
     assignmentId: "",
     selectedWinnerArtistId: "",
@@ -243,9 +245,65 @@ export default function ArenaPage() {
     void postProtocol("joinEvent", join);
   }
 
-  function handleSubmission(event: FormEvent<HTMLFormElement>) {
+  async function uploadSubmissionFile(eventId: string, artistId: string, round: number) {
+    if (!submissionFile) {
+      return submission.audioUrl.trim();
+    }
+
+    const formData = new FormData();
+    formData.append("file", submissionFile);
+    formData.append("artistId", artistId);
+    formData.append("eventId", eventId);
+    formData.append("round", String(round));
+
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Audio upload failed.");
+    }
+
+    setUploadLabel(data.fileName || submissionFile.name);
+    return String(data.publicUrl || "");
+  }
+
+  async function handleSubmission(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void postProtocol("submit", submission);
+    setIsBusy(true);
+    setMessage("");
+
+    try {
+      const activeEventId = submission.eventId;
+      const activeArtistId = submission.artistId;
+      const activeEvent = payload?.events.find((entry) => entry.id === activeEventId);
+      const uploadedAudioUrl = await uploadSubmissionFile(activeEventId, activeArtistId, activeEvent?.currentRound || 1);
+
+      const response = await fetch("/api/pilot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "submit",
+          ...submission,
+          audioUrl: uploadedAudioUrl,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Protocol action failed.");
+      }
+
+      setPayload(data);
+      setSubmission((current) => ({ ...current, audioUrl: uploadedAudioUrl }));
+      setMessage("Submission saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Protocol action failed.");
+    } finally {
+      setIsBusy(false);
+    }
   }
 
   function handleHostJudgment(event: FormEvent<HTMLFormElement>) {
@@ -290,6 +348,22 @@ export default function ArenaPage() {
   }, [payload]);
   const selectedAssignment = payload?.assignments.find((assignment) => assignment.id === hostJudging.assignmentId);
   const selectedBattle = payload?.battles.find((battle) => battle.id === selectedAssignment?.battleId);
+  const battleSubmission = (eventId: string | undefined, artistId: string | undefined, round: number | undefined) =>
+    payload?.submissions.find(
+      (entry) => entry.eventId === eventId && entry.artistId === artistId && entry.round === round,
+    );
+  const artistBattleSubmissions = artistBattle
+    ? [
+        battleSubmission(artistBattle.eventId, artistBattle.artistAId, artistBattle.round),
+        battleSubmission(artistBattle.eventId, artistBattle.artistBId, artistBattle.round),
+      ]
+    : [];
+  const hostBattleSubmissions = selectedBattle
+    ? [
+        battleSubmission(selectedBattle.eventId, selectedBattle.artistAId, selectedBattle.round),
+        battleSubmission(selectedBattle.eventId, selectedBattle.artistBId, selectedBattle.round),
+      ]
+    : [];
 
   if (isLoading) {
     return <main className="pilot-page">Loading battle protocol...</main>;
@@ -423,12 +497,16 @@ export default function ArenaPage() {
                 <input value={submission.title} onChange={(event) => setSubmission({ ...submission, title: event.target.value })} />
               </label>
               <label>
-                Audio URL
+                Upload audio
                 <input
-                  value={submission.audioUrl}
-                  onChange={(event) => setSubmission({ ...submission, audioUrl: event.target.value })}
+                  accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/mp4,audio/x-m4a"
+                  onChange={(event) => setSubmissionFile(event.target.files?.[0] || null)}
+                  type="file"
                 />
               </label>
+              <p className="artist-muted">
+                {submissionFile ? `Ready to upload: ${submissionFile.name}` : uploadLabel ? `Uploaded: ${uploadLabel}` : "Choose your submission file."}
+              </p>
               <label>
                 Length in seconds
                 <input
@@ -506,18 +584,27 @@ export default function ArenaPage() {
               {artistAssignment && artistBattle ? (
                 <>
                   <div className="artist-versus">
-                    {[artistBattle.artistAId, artistBattle.artistBId].map((artistId) => (
-                      <button
-                        className={artistChoice === artistId ? "is-picked" : ""}
-                        key={artistId}
-                        onClick={() => setArtistChoice(artistId)}
-                        type="button"
-                      >
-                        <span>Artist</span>
-                        <strong>{artistMap.get(artistId)?.name}</strong>
-                        <em>Select</em>
-                      </button>
-                    ))}
+                    {[artistBattle.artistAId, artistBattle.artistBId].map((artistId, index) => {
+                      const submissionEntry = artistBattleSubmissions[index];
+
+                      return (
+                        <button
+                          className={artistChoice === artistId ? "is-picked" : ""}
+                          key={artistId}
+                          onClick={() => setArtistChoice(artistId)}
+                          type="button"
+                        >
+                          <span>Artist</span>
+                          <strong>{artistMap.get(artistId)?.name}</strong>
+                          <em>{submissionEntry?.title || "Submission pending"}</em>
+                          {submissionEntry?.audioUrl ? (
+                            <audio controls controlsList="nodownload" preload="none" src={submissionEntry.audioUrl} />
+                          ) : (
+                            <small>Track not uploaded yet.</small>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                   <div className="artist-judge-actions">
                     <button
@@ -640,9 +727,16 @@ export default function ArenaPage() {
                 <input value={submission.title} onChange={(event) => setSubmission({ ...submission, title: event.target.value })} />
               </label>
               <label>
-                MP3 or audio URL
-                <input value={submission.audioUrl} onChange={(event) => setSubmission({ ...submission, audioUrl: event.target.value })} />
+                Upload audio
+                <input
+                  accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/mp4,audio/x-m4a"
+                  onChange={(event) => setSubmissionFile(event.target.files?.[0] || null)}
+                  type="file"
+                />
               </label>
+              <p className="artist-muted">
+                {submissionFile ? `Ready to upload: ${submissionFile.name}` : uploadLabel ? `Uploaded: ${uploadLabel}` : "Choose an audio file for this round."}
+              </p>
               <label>
                 Length in seconds
                 <input
@@ -729,6 +823,26 @@ export default function ArenaPage() {
               >
                 Open 15-minute timer
               </button>
+              {selectedBattle ? (
+                <div className="judge-playback-grid">
+                  {[selectedBattle.artistAId, selectedBattle.artistBId].map((artistId, index) => {
+                    const submissionEntry = hostBattleSubmissions[index];
+
+                    return (
+                      <div className="judge-playback-card" key={artistId}>
+                        <span>Contestant</span>
+                        <strong>{artistMap.get(artistId)?.name}</strong>
+                        <em>{submissionEntry?.title || "Submission pending"}</em>
+                        {submissionEntry?.audioUrl ? (
+                          <audio controls controlsList="nodownload" preload="none" src={submissionEntry.audioUrl} />
+                        ) : (
+                          <small>Track not uploaded yet.</small>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
               <label>
                 Winner
                 <select
