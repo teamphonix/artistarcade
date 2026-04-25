@@ -124,7 +124,7 @@ function createRoundBattles(state: ProtocolState, eventId: string, round: number
 
     if (!exists) {
       createdBattles.push({
-        id: makeId("battle"),
+        id: makeId(),
         eventId,
         round,
         slot: Math.floor(index / 2) + 1,
@@ -558,7 +558,7 @@ export async function POST(request: Request) {
       let artist = state.artists.find((entry) => entry.email === email);
       if (!artist) {
         artist = {
-          id: makeId("artist"),
+          id: makeId(),
           name,
           email,
           walletCents: 0,
@@ -572,7 +572,7 @@ export async function POST(request: Request) {
       artist.name = name;
       artist.walletCents += amountCents;
       state.walletLedger.push({
-        id: makeId("ledger"),
+        id: makeId(),
         artistId: artist.id,
         eventId: null,
         amountCents,
@@ -612,7 +612,7 @@ export async function POST(request: Request) {
       artist.walletCents -= event.entryFeeCents;
       artist.status = "queued";
       const nextEntry: ProtocolEntry = {
-        id: makeId("entry"),
+        id: makeId(),
         eventId,
         artistId,
         seed: eventEntries.length + 1,
@@ -623,7 +623,7 @@ export async function POST(request: Request) {
 
       state.entries.push(nextEntry);
       state.walletLedger.push({
-        id: makeId("ledger"),
+        id: makeId(),
         artistId,
         eventId,
         amountCents: -event.entryFeeCents,
@@ -682,7 +682,7 @@ export async function POST(request: Request) {
       );
 
       const nextSubmission = {
-        id: existing?.id || makeId("sub"),
+        id: existing?.id || makeId(),
         eventId,
         artistId,
         round: event.currentRound,
@@ -720,7 +720,7 @@ export async function POST(request: Request) {
 
         judges.forEach((judge) => {
           state.assignments.push({
-            id: makeId("assign"),
+            id: makeId(),
             battleId: battle.id,
             judgeArtistId: judge.id,
             status: "assigned",
@@ -781,7 +781,7 @@ export async function POST(request: Request) {
       );
 
       const judgment: ProtocolJudgment = {
-        id: makeId("judgment"),
+        id: makeId(),
         assignmentId,
         battleId: battle.id,
         judgeArtistId: assignment.judgeArtistId,
@@ -825,7 +825,7 @@ export async function POST(request: Request) {
         event.companyRevenueCents = Math.max(0, gross - event.desiredPrizeCents);
         event.phase = "complete";
         state.walletLedger.push({
-          id: makeId("ledger"),
+          id: makeId(),
           artistId: winners[0],
           eventId,
           amountCents: event.desiredPrizeCents,
@@ -834,7 +834,7 @@ export async function POST(request: Request) {
           createdAt: new Date().toISOString(),
         });
         state.walletLedger.push({
-          id: makeId("ledger"),
+          id: makeId(),
           artistId: null,
           eventId,
           amountCents: event.companyRevenueCents,
