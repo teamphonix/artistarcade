@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import {
   ARTISTS_PER_EVENT,
-  JUDGES_PER_BATTLE,
   JUDGING_WINDOW_MINUTES,
   SCORE_CATEGORIES,
   SUBMISSION_LIMIT_SECONDS,
@@ -30,6 +29,7 @@ type ProtocolAction =
   | "closeQueue"
   | "submit"
   | "generateJudgeAssignments"
+  | "claimAssignment"
   | "openAssignment"
   | "judge"
   | "finalizeRound"
@@ -45,6 +45,242 @@ function addMinutes(date: Date, minutes: number) {
   const next = new Date(date);
   next.setMinutes(next.getMinutes() + minutes);
   return next.toISOString();
+}
+
+function shuffle<T>(items: T[]) {
+  const next = [...items];
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+  }
+  return next;
+}
+
+function getEventParticipants(state: ProtocolState, eventId: string) {
+  return state.entries.filter((entry) => entry.eventId === eventId).map((entry) => entry.artistId);
+}
+
+function getSubmissionForBattle(state: ProtocolState, battle: ProtocolBattle) {
+  const artistASubmission = state.submissions.find(
+    (submission) =>
+      submission.eventId === battle.eventId && submission.artistId === battle.artistAId && submission.round === battle.round,
+  );
+  const artistBSubmission = state.submissions.find(
+    (submission) =>
+      submission.eventId === battle.eventId && submission.artistId === battle.artistBId && submission.round === battle.round,
+  );
+
+  return artistASubmission && artistBSubmission ? { artistASubmission, artistBSubmission } : null;
+}
+
+function getActiveAssignment(state: ProtocolState, judgeArtistId: string) {
+  return state.assignments.find(
+    (assignment) =>
+      assignment.judgeArtistId === judgeArtistId && (assignment.status === "assigned" || assignment.status === "opened"),
+  );
+}
+
+function resolveBattleWinner(state: ProtocolState, battleId: string, winnerArtistId: string, completedAt: string) {
+  const battle = state.battles.find((entry) => entry.id === battleId);
+  if (!battle || ![battle.artistAId, battle.artistBId].includes(winnerArtistId)) {
+    return;
+  }
+
+  battle.winnerArtistId = winnerArtistId;
+  battle.status = "complete";
+  battle.completedAt = completedAt;
+
+  const loserId = battle.artistAId === winnerArtistId ? battle.artistBId : battle.artistAId;
+  const winner = state.artists.find((artist) => artist.id === winnerArtistId);
+  const loser = state.artists.find((artist) => artist.id === loserId);
+  const winnerEntry = state.entries.find((entry) => entry.eventId === battle.eventId && entry.artistId === winnerArtistId);
+  const loserEntry = state.entries.find((entry) => entry.eventId === battle.eventId && entry.artistId === loserId);
+
+  if (winner) {
+    winner.status = "advanced";
+  }
+
+  if (winnerEntry) {
+    winnerEntry.status = "active";
+  }
+
+  if (loser) {
+    loser.status = "eliminated";
+  }
+
+  if (loserEntry) {
+    loserEntry.status = "eliminated";
+  }
+}
+
+function autoResolveBattle(state: ProtocolState, battleId: string) {
+  const battle = state.battles.find((entry) => entry.id === battleId);
+  if (!battle || battle.status === "complete") {
+    return;
+  }
+
+  const pickedWinner = Math.random() >= 0.5 ? battle.artistAId : battle.artistBId;
+  resolveBattleWinner(state, battle.id, pickedWinner, new Date().toISOString());
+}
+
+function tryAdvanceEvent(state: ProtocolState, eventId: string) {
+  const event = state.events.find((entry) => entry.id === eventId);
+  if (!event) {
+    return;
+  }
+
+  const roundBattles = state.battles.filter((battle) => battle.eventId === eventId && battle.round === event.currentRound);
+  if (roundBattles.length === 0 || roundBattles.some((battle) => battle.status !== "complete" || !battle.winnerArtistId)) {
+    return;
+  }
+
+  const winners = roundBattles.map((battle) => battle.winnerArtistId).filter(Boolean) as string[];
+  if (winners.length === 1) {
+    const winner = state.artists.find((artist) => artist.id === winners[0]);
+    if (winner) {
+      winner.status = "winner";
+      winner.walletCents += event.desiredPrizeCents;
+      winner.rewardCents += event.desiredPrizeCents;
+    }
+
+    const gross = state.entries
+      .filter((entry) => entry.eventId === eventId)
+      .reduce((sum, entry) => sum + entry.paidCents, 0);
+
+    event.winnerArtistId = winners[0];
+    event.companyRevenueCents = Math.max(0, gross - event.desiredPrizeCents);
+    event.phase = "complete";
+    event.submissionDeadline = null;
+    event.judgingDeadline = null;
+
+    state.walletLedger.push({
+      id: makeId(),
+      artistId: winners[0],
+      eventId,
+      amountCents: event.desiredPrizeCents,
+      type: "prize",
+      note: `Winner prize for ${event.title}`,
+      createdAt: new Date().toISOString(),
+    });
+    state.walletLedger.push({
+      id: makeId(),
+      artistId: null,
+      eventId,
+      amountCents: event.companyRevenueCents,
+      type: "company_revenue",
+      note: `Company remainder for ${event.title}`,
+      createdAt: new Date().toISOString(),
+    });
+    return;
+  }
+
+  event.currentRound += 1;
+  event.phase = "submission";
+  event.submissionDeadline = addHours(new Date(), SUBMISSION_WINDOW_HOURS);
+  event.judgingDeadline = null;
+  createRoundBattles(state, event.id, event.currentRound, winners);
+}
+
+function resolveExpiredAssignments(state: ProtocolState) {
+  let changed = false;
+
+  state.assignments
+    .filter((assignment) => assignment.status === "opened" && assignment.dueAt && new Date(assignment.dueAt) < new Date())
+    .forEach((assignment) => {
+      assignment.status = "expired";
+      autoResolveBattle(state, assignment.battleId);
+      const battle = state.battles.find((entry) => entry.id === assignment.battleId);
+      if (battle) {
+        tryAdvanceEvent(state, battle.eventId);
+      }
+      changed = true;
+    });
+
+  return changed;
+}
+
+function canJudgeBattle(state: ProtocolState, judgeArtistId: string, battle: ProtocolBattle) {
+  if (battle.status === "complete") {
+    return false;
+  }
+
+  if (battle.artistAId === judgeArtistId || battle.artistBId === judgeArtistId) {
+    return false;
+  }
+
+  const sameArena = getEventParticipants(state, battle.eventId).includes(judgeArtistId);
+  if (sameArena) {
+    return false;
+  }
+
+  if (!getSubmissionForBattle(state, battle)) {
+    return false;
+  }
+
+  if (getActiveAssignment(state, judgeArtistId)) {
+    return false;
+  }
+
+  const judgedAlready = state.assignments.some(
+    (assignment) => assignment.judgeArtistId === judgeArtistId && assignment.battleId === battle.id,
+  );
+  return !judgedAlready;
+}
+
+function assignNextBattle(state: ProtocolState, judgeArtistId: string) {
+  const artist = state.artists.find((entry) => entry.id === judgeArtistId);
+  if (!artist) {
+    return null;
+  }
+
+  const battlePool = shuffle(
+    state.battles.filter(
+      (battle) =>
+        battle.status !== "complete" &&
+        !state.assignments.some(
+          (assignment) => assignment.battleId === battle.id && (assignment.status === "assigned" || assignment.status === "opened"),
+        ),
+    ),
+  );
+
+  const pickedBattle = battlePool.find((battle) => canJudgeBattle(state, judgeArtistId, battle));
+  if (!pickedBattle) {
+    if (artist.status !== "winner" && artist.status !== "eliminated") {
+      artist.status = "submitted";
+    }
+    return null;
+  }
+
+  const assignment = {
+    id: makeId(),
+    battleId: pickedBattle.id,
+    judgeArtistId,
+    status: "assigned" as const,
+    assignedAt: new Date().toISOString(),
+    openedAt: null,
+    dueAt: null,
+    completedAt: null,
+  };
+
+  state.assignments.push(assignment);
+  pickedBattle.status = "judging";
+  artist.status = "judging";
+  return assignment;
+}
+
+function syncGlobalQueue(state: ProtocolState) {
+  const eligibleArtists = shuffle(
+    state.artists.filter(
+      (artist) =>
+        artist.status !== "winner" &&
+        artist.status !== "eliminated" &&
+        !getActiveAssignment(state, artist.id),
+    ),
+  );
+
+  eligibleArtists.forEach((artist) => {
+    assignNextBattle(state, artist.id);
+  });
 }
 
 function summarize(state: ProtocolState) {
@@ -139,61 +375,6 @@ function createRoundBattles(state: ProtocolState, eventId: string, round: number
   }
 
   state.battles.push(...createdBattles);
-}
-
-function eligibleJudges(state: ProtocolState, battle: ProtocolBattle) {
-  const battleEventEntryIds = state.entries
-    .filter((entry) => entry.eventId === battle.eventId)
-    .map((entry) => entry.artistId);
-
-  return state.artists.filter((artist) => {
-    if (artist.id === battle.artistAId || artist.id === battle.artistBId) {
-      return false;
-    }
-
-    return !battleEventEntryIds.includes(artist.id);
-  });
-}
-
-function maybeCompleteBattle(state: ProtocolState, battleId: string) {
-  const battle = state.battles.find((entry) => entry.id === battleId);
-  if (!battle) {
-    return;
-  }
-
-  const completedAssignments = state.assignments.filter(
-    (assignment) => assignment.battleId === battleId && assignment.status === "completed",
-  );
-
-  if (completedAssignments.length < JUDGES_PER_BATTLE) {
-    return;
-  }
-
-  const scored = scoreBattle(state, battleId);
-  if (!scored?.winnerArtistId) {
-    return;
-  }
-
-  battle.winnerArtistId = scored.winnerArtistId;
-  battle.status = "complete";
-  battle.completedAt = new Date().toISOString();
-
-  const loserId = battle.artistAId === scored.winnerArtistId ? battle.artistBId : battle.artistAId;
-  const winner = state.artists.find((artist) => artist.id === scored.winnerArtistId);
-  const loser = state.artists.find((artist) => artist.id === loserId);
-  const loserEntry = state.entries.find((entry) => entry.eventId === battle.eventId && entry.artistId === loserId);
-
-  if (winner) {
-    winner.status = "advanced";
-  }
-
-  if (loser) {
-    loser.status = "eliminated";
-  }
-
-  if (loserEntry) {
-    loserEntry.status = "eliminated";
-  }
 }
 
 async function readSupabaseState() {
@@ -514,7 +695,12 @@ async function persistState(state: ProtocolState) {
 }
 
 async function readPayload() {
-  return summarize(await loadState());
+  const state = await loadState();
+  const changed = resolveExpiredAssignments(state);
+  if (changed) {
+    await persistState(state);
+  }
+  return summarize(state);
 }
 
 export async function GET() {
@@ -544,6 +730,7 @@ export async function POST(request: Request) {
   }
 
   const state = await loadState();
+  const expiredResolved = resolveExpiredAssignments(state);
 
   try {
     if (action === "deposit") {
@@ -698,44 +885,38 @@ export async function POST(request: Request) {
       if (artist) {
         artist.status = "submitted";
       }
+
+      const activeRoundArtists = state.battles
+        .filter((battle) => battle.eventId === eventId && battle.round === event.currentRound)
+        .flatMap((battle) => [battle.artistAId, battle.artistBId]);
+      const allRoundSubmissionsReady = activeRoundArtists.every((roundArtistId) =>
+        state.submissions.some(
+          (savedSubmission) =>
+            savedSubmission.eventId === eventId &&
+            savedSubmission.artistId === roundArtistId &&
+            savedSubmission.round === event.currentRound,
+        ),
+      );
+
+      if (allRoundSubmissionsReady) {
+        event.phase = "judging";
+        event.judgingDeadline = addHours(new Date(), 24);
+      }
     }
 
     if (action === "generateJudgeAssignments") {
-      const eventId = String(body?.eventId || "");
-      const event = state.events.find((entry) => entry.id === eventId);
+      syncGlobalQueue(state);
+    }
 
-      if (!event) {
-        return NextResponse.json({ error: "Event is required." }, { status: 400 });
+    if (action === "claimAssignment") {
+      const artistId = String(body?.artistId || "");
+      const artist = state.artists.find((entry) => entry.id === artistId);
+
+      if (!artist) {
+        return NextResponse.json({ error: "Artist is required." }, { status: 400 });
       }
 
-      const roundBattles = state.battles.filter(
-        (battle) => battle.eventId === event.id && battle.round === event.currentRound && battle.status !== "complete",
-      );
-
-      roundBattles.forEach((battle) => {
-        const existingAssignments = state.assignments.filter((assignment) => assignment.battleId === battle.id);
-        const judges = eligibleJudges(state, battle)
-          .filter((artist) => !existingAssignments.some((assignment) => assignment.judgeArtistId === artist.id))
-          .slice(0, JUDGES_PER_BATTLE - existingAssignments.length);
-
-        judges.forEach((judge) => {
-          state.assignments.push({
-            id: makeId(),
-            battleId: battle.id,
-            judgeArtistId: judge.id,
-            status: "assigned",
-            assignedAt: new Date().toISOString(),
-            openedAt: null,
-            dueAt: null,
-            completedAt: null,
-          });
-        });
-
-        battle.status = "judging";
-      });
-
-      event.phase = "judging";
-      event.judgingDeadline = addHours(new Date(), 24);
+      assignNextBattle(state, artistId);
     }
 
     if (action === "openAssignment") {
@@ -794,61 +975,18 @@ export async function POST(request: Request) {
       state.judgments.push(judgment);
       assignment.status = "completed";
       assignment.completedAt = new Date().toISOString();
-      maybeCompleteBattle(state, battle.id);
+      resolveBattleWinner(state, battle.id, selectedWinnerArtistId, assignment.completedAt);
+      tryAdvanceEvent(state, battle.eventId);
+      assignNextBattle(state, assignment.judgeArtistId);
     }
 
     if (action === "finalizeRound") {
       const eventId = String(body?.eventId || "");
-      const event = state.events.find((entry) => entry.id === eventId);
+      tryAdvanceEvent(state, eventId);
+    }
 
-      if (!event) {
-        return NextResponse.json({ error: "Event is required." }, { status: 400 });
-      }
-
-      const roundBattles = state.battles.filter((battle) => battle.eventId === eventId && battle.round === event.currentRound);
-      if (roundBattles.some((battle) => battle.status !== "complete" || !battle.winnerArtistId)) {
-        return NextResponse.json({ error: "All round battles must be complete before advancing." }, { status: 409 });
-      }
-
-      const winners = roundBattles.map((battle) => battle.winnerArtistId).filter(Boolean) as string[];
-      if (winners.length === 1) {
-        const winner = state.artists.find((artist) => artist.id === winners[0]);
-        if (winner) {
-          winner.status = "winner";
-          winner.walletCents += event.desiredPrizeCents;
-          winner.rewardCents += event.desiredPrizeCents;
-        }
-        const gross = state.entries
-          .filter((entry) => entry.eventId === eventId)
-          .reduce((sum, entry) => sum + entry.paidCents, 0);
-        event.winnerArtistId = winners[0];
-        event.companyRevenueCents = Math.max(0, gross - event.desiredPrizeCents);
-        event.phase = "complete";
-        state.walletLedger.push({
-          id: makeId(),
-          artistId: winners[0],
-          eventId,
-          amountCents: event.desiredPrizeCents,
-          type: "prize",
-          note: `Winner prize for ${event.title}`,
-          createdAt: new Date().toISOString(),
-        });
-        state.walletLedger.push({
-          id: makeId(),
-          artistId: null,
-          eventId,
-          amountCents: event.companyRevenueCents,
-          type: "company_revenue",
-          note: `Company remainder for ${event.title}`,
-          createdAt: new Date().toISOString(),
-        });
-      } else {
-        event.currentRound += 1;
-        event.phase = "submission";
-        event.submissionDeadline = addHours(new Date(), SUBMISSION_WINDOW_HOURS);
-        event.judgingDeadline = null;
-        createRoundBattles(state, event.id, event.currentRound, winners);
-      }
+    if (expiredResolved) {
+      syncGlobalQueue(state);
     }
 
     await persistState(state);

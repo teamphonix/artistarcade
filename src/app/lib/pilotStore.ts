@@ -8,7 +8,7 @@ export const TOTAL_MVP_ARTISTS = ARTISTS_PER_EVENT * MVP_EVENT_COUNT;
 export const SUBMISSION_LIMIT_SECONDS = 180;
 export const SUBMISSION_WINDOW_HOURS = 24;
 export const JUDGING_WINDOW_MINUTES = 15;
-export const JUDGES_PER_BATTLE = 4;
+export const JUDGES_PER_BATTLE = 1;
 
 export const SCORE_CATEGORIES = [
   { key: "lyrics", label: "Lyrics", weight: 25 },

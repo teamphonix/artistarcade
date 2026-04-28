@@ -70,7 +70,7 @@ type EventSummary = {
 };
 
 type ProtocolPayload = {
-  backend: "local";
+  backend: "local" | "supabase";
   settings: {
     artistsPerEvent: number;
     eventCount: number;
@@ -173,6 +173,7 @@ export default function ArenaPage() {
   });
   const [submissionFile, setSubmissionFile] = useState<File | null>(null);
   const [uploadLabel, setUploadLabel] = useState("");
+  const [isClaimingAssignment, setIsClaimingAssignment] = useState(false);
   const [hostJudging, setHostJudging] = useState({
     assignmentId: "",
     selectedWinnerArtistId: "",
@@ -326,6 +327,15 @@ export default function ArenaPage() {
       selectedWinnerArtistId: artistChoice,
       scores: hiddenScores,
     });
+  }
+
+  async function claimAssignment(artistId: string) {
+    setIsClaimingAssignment(true);
+    try {
+      await postProtocol("claimAssignment", { artistId });
+    } finally {
+      setIsClaimingAssignment(false);
+    }
   }
 
   const selectedEvent = payload?.events.find((event) => event.id === selectedEventId) || payload?.events[0];
@@ -539,16 +549,29 @@ export default function ArenaPage() {
                     ? "Decision ready"
                     : artistEvent?.phase === "complete"
                       ? "Final reveal pending"
-                      : "Awaiting next matchup"}
+                      : artistEvent?.phase === "judging"
+                        ? "Waiting in the live queue"
+                        : "Awaiting next matchup"}
                 </strong>
                 <p>
                   {artistAssignment
                     ? "Listen to both artists and choose who felt stronger. Once you submit, the system advances the winner and prepares the next available matchup."
-                    : "Arena recalibrating. Stay ready. Your next assignment appears only when the system needs your vote."}
+                    : artistEvent?.phase === "judging"
+                      ? "You are active and ready. Pull the next available matchup when the queue has one for you."
+                      : "Arena recalibrating. Stay ready. Your next assignment appears only when the system needs your vote."}
                 </p>
                 <span>
                   {artistAssignment ? `Decision window ${relativeCountdown(artistAssignment.dueAt)}` : "Stand by for next call"}
                 </span>
+                {!artistAssignment && artistEvent?.phase === "judging" ? (
+                  <button
+                    disabled={isBusy || isClaimingAssignment}
+                    onClick={() => void claimAssignment(artistViewId)}
+                    type="button"
+                  >
+                    {isClaimingAssignment ? "Checking queue..." : "Pull next matchup"}
+                  </button>
+                ) : null}
               </div>
             </article>
 
@@ -756,15 +779,15 @@ export default function ArenaPage() {
               <span className="pilot-step">04 Assign</span>
               <h2>Assignment engine</h2>
               <p>
-                Secret sauce stays here: full queue, round transitions, cross-event assignments, binary front end, and
-                delayed reveal.
+                Secret sauce stays here: one live global matchup queue, random first-available assignment pulls, cross-event
+                constraints, and automatic resolution if a timer burns out.
               </p>
               <button
                 disabled={isBusy || selectedEvent.phase === "queue"}
                 onClick={() => postProtocol("generateJudgeAssignments", { eventId: selectedEvent.id })}
                 type="button"
               >
-                Generate assignments
+                Sync global queue
               </button>
               <button disabled={isBusy} onClick={() => postProtocol("finalizeRound", { eventId: selectedEvent.id })} type="button">
                 Finalize round
