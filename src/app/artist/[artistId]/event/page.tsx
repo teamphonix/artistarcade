@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Artist = {
   id: string;
@@ -28,6 +28,16 @@ type Assignment = {
   dueAt: string | null;
 };
 
+type MatchSubmission = {
+  id: string;
+  eventId: string;
+  artistId: string;
+  round: number;
+  title: string;
+  audioUrl: string;
+  durationSeconds: number;
+};
+
 type EventSummary = {
   id: string;
   title: string;
@@ -46,15 +56,7 @@ type ProtocolPayload = {
   events: EventSummary[];
   battles: Battle[];
   assignments: Assignment[];
-  submissions: Array<{
-    id: string;
-    eventId: string;
-    artistId: string;
-    round: number;
-    title: string;
-    audioUrl: string;
-    durationSeconds: number;
-  }>;
+  submissions: MatchSubmission[];
 };
 
 function relativeCountdown(date: string | null) {
@@ -86,8 +88,29 @@ export default function ArtistEventRoomPage() {
   const [title, setTitle] = useState("");
   const [durationSeconds, setDurationSeconds] = useState(180);
   const [file, setFile] = useState<File | null>(null);
+  const [selectedWinnerId, setSelectedWinnerId] = useState("");
+  const [heardFullTrack, setHeardFullTrack] = useState<Record<string, boolean>>({});
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [playingSubmissionId, setPlayingSubmissionId] = useState<string | null>(null);
+  const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
+  const assignmentIdRef = useRef<string | null>(null);
 
-  async function loadProtocol() {
+  const syncPayloadState = useCallback((data: ProtocolPayload) => {
+    const nextAssignmentId =
+      data.assignments.find((entry) => entry.judgeArtistId === artistId && entry.status === "assigned")?.id || null;
+
+    if (nextAssignmentId !== assignmentIdRef.current) {
+      assignmentIdRef.current = nextAssignmentId;
+      setSelectedWinnerId("");
+      setHeardFullTrack({});
+      setPlayingSubmissionId(null);
+      audioRefs.current = {};
+    }
+
+    setPayload(data);
+  }, [artistId]);
+
+  const loadProtocol = useCallback(async () => {
     const response = await fetch("/api/pilot", { cache: "no-store" });
     const data = await response.json();
 
@@ -95,8 +118,8 @@ export default function ArtistEventRoomPage() {
       throw new Error(data.error || "Could not load event room.");
     }
 
-    setPayload(data);
-  }
+    syncPayloadState(data);
+  }, [syncPayloadState]);
 
   useEffect(() => {
     let isMounted = true;
@@ -116,6 +139,12 @@ export default function ArtistEventRoomPage() {
     return () => {
       isMounted = false;
     };
+  }, [loadProtocol]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setCurrentTime(Date.now()), 1000);
+
+    return () => window.clearInterval(interval);
   }, []);
 
   async function uploadSubmissionFile(eventId: string, round: number) {
@@ -167,7 +196,7 @@ export default function ArtistEventRoomPage() {
         throw new Error(data.error || "Submission failed.");
       }
 
-      setPayload(data);
+      syncPayloadState(data);
       setMessage("Submission uploaded. Stand by for judging.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Submission failed.");
@@ -183,12 +212,119 @@ export default function ArtistEventRoomPage() {
   );
   const assignment = payload?.assignments.find((entry) => entry.judgeArtistId === artistId && entry.status === "assigned");
   const battle = payload?.battles.find((entry) => entry.id === assignment?.battleId);
-  const opponentId = battle
-    ? battle.artistAId === artistId
-      ? battle.artistBId
-      : battle.artistAId
-    : null;
-  const opponent = payload?.artists.find((entry) => entry.id === opponentId) || null;
+  const judgingEvent = payload?.events.find((entry) => entry.id === battle?.eventId) || null;
+  const matchupSubmissions = useMemo(() => {
+    if (!payload || !battle) {
+      return [];
+    }
+
+    return payload.submissions.filter(
+      (entry) =>
+        entry.eventId === battle.eventId &&
+        entry.round === battle.round &&
+        (entry.artistId === battle.artistAId || entry.artistId === battle.artistBId),
+    );
+  }, [payload, battle]);
+
+  const matchupArtists = useMemo(() => {
+    if (!payload || !battle) {
+      return [];
+    }
+
+    return [battle.artistAId, battle.artistBId]
+      .map((id) => {
+        const competitor = payload.artists.find((entry) => entry.id === id);
+        const submissionEntry = matchupSubmissions.find((entry) => entry.artistId === id);
+
+        if (!competitor || !submissionEntry) {
+          return null;
+        }
+
+        return {
+          artist: competitor,
+          submission: submissionEntry,
+        };
+      })
+      .filter(Boolean) as Array<{ artist: Artist; submission: MatchSubmission }>;
+  }, [battle, matchupSubmissions, payload]);
+
+  const assignmentExpired = assignment?.dueAt ? new Date(assignment.dueAt).getTime() <= currentTime : false;
+  const countdownLabel = assignment?.dueAt ? relativeCountdown(assignment.dueAt) : "Awaiting trigger";
+  const playbackUnlocked = matchupArtists.length > 0 && matchupArtists.every(({ submission }) => heardFullTrack[submission.id]);
+
+  async function handleJudgeSubmission() {
+    if (!assignment || !selectedWinnerId || !playbackUnlocked) {
+      return;
+    }
+
+    setIsBusy(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/pilot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "judge",
+          assignmentId: assignment.id,
+          selectedWinnerArtistId: selectedWinnerId,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Judgment could not be submitted.");
+      }
+
+      syncPayloadState(data);
+      setMessage("Judgment submitted. Stand by for the next wave.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Judgment could not be submitted.");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  function playSubmission(submissionId: string) {
+    Object.entries(audioRefs.current).forEach(([id, node]) => {
+      if (!node) {
+        return;
+      }
+
+      if (id !== submissionId) {
+        node.pause();
+      }
+    });
+
+    const nextAudio = audioRefs.current[submissionId];
+    if (!nextAudio) {
+      return;
+    }
+
+    void nextAudio.play();
+    setPlayingSubmissionId(submissionId);
+  }
+
+  function pauseSubmission(submissionId: string) {
+    const audioNode = audioRefs.current[submissionId];
+    if (!audioNode) {
+      return;
+    }
+
+    audioNode.pause();
+    setPlayingSubmissionId((current) => (current === submissionId ? null : current));
+  }
+
+  function restartSubmission(submissionId: string) {
+    const audioNode = audioRefs.current[submissionId];
+    if (!audioNode) {
+      return;
+    }
+
+    audioNode.currentTime = 0;
+    void audioNode.play();
+    setPlayingSubmissionId(submissionId);
+  }
 
   if (!payload || !artist) {
     return (
@@ -275,15 +411,92 @@ export default function ArtistEventRoomPage() {
                     ? "Your judging card is active. Review both tracks and make your decision before the wave expires."
                     : "Once your file is in, remain on standby. Your judging duty is required for your submission to remain valid."}
                 </p>
-                <strong>{assignment ? `Assignment due in ${relativeCountdown(assignment.dueAt)}` : "No active judging card"}</strong>
+                <strong>{assignment ? `Assignment due in ${countdownLabel}` : "No active judging card"}</strong>
               </article>
 
               <article className="artist-room-panel">
                 <h2>Current matchup</h2>
-                {assignment && opponent ? (
+                {assignment && battle && matchupArtists.length === 2 ? (
                   <>
-                    <strong>{artist.name} judges against {opponent.name}</strong>
-                    <p>The judging playback lock and result review layer is next in line for this room.</p>
+                    <strong>
+                      {judgingEvent?.title || "Judging wave"} round {battle.round}
+                    </strong>
+                    <p>
+                      The clock started when this wave was distributed. Listen to both tracks all the way through once to unlock
+                      your decision.
+                    </p>
+                    <div className="judge-playback-grid">
+                      {matchupArtists.map(({ artist: competitor, submission: matchupSubmission }) => {
+                        const heardOnce = !!heardFullTrack[matchupSubmission.id];
+                        const isSelected = selectedWinnerId === competitor.id;
+                        const isPlaying = playingSubmissionId === matchupSubmission.id;
+
+                        return (
+                          <article className="judge-playback-card" key={matchupSubmission.id}>
+                            <span>Submission</span>
+                            <strong>{competitor.name}</strong>
+                            <em>{matchupSubmission.title}</em>
+                            <small>
+                              {heardOnce
+                                ? "Full listen completed. Advanced playback unlocked."
+                                : "Complete one full listen before decision unlocks."}
+                            </small>
+                            <audio
+                              controls={playbackUnlocked}
+                              onEnded={() => {
+                                setHeardFullTrack((current) => ({ ...current, [matchupSubmission.id]: true }));
+                                setPlayingSubmissionId((current) =>
+                                  current === matchupSubmission.id ? null : current,
+                                );
+                              }}
+                              onPause={() => {
+                                setPlayingSubmissionId((current) =>
+                                  current === matchupSubmission.id ? null : current,
+                                );
+                              }}
+                              onPlay={() => setPlayingSubmissionId(matchupSubmission.id)}
+                              preload="metadata"
+                              ref={(node) => {
+                                audioRefs.current[matchupSubmission.id] = node;
+                              }}
+                              src={matchupSubmission.audioUrl}
+                            />
+                            {!playbackUnlocked ? (
+                              <div className="judge-audio-gate">
+                                <button onClick={() => playSubmission(matchupSubmission.id)} type="button">
+                                  {isPlaying ? "Playing..." : "Play full track"}
+                                </button>
+                                <button onClick={() => pauseSubmission(matchupSubmission.id)} type="button">
+                                  Pause
+                                </button>
+                                <button onClick={() => restartSubmission(matchupSubmission.id)} type="button">
+                                  Restart
+                                </button>
+                              </div>
+                            ) : null}
+                            <button
+                              className={isSelected ? "judge-select is-selected" : "judge-select"}
+                              disabled={!playbackUnlocked || assignmentExpired || isBusy}
+                              onClick={() => setSelectedWinnerId(competitor.id)}
+                              type="button"
+                            >
+                              Select {competitor.name}
+                            </button>
+                          </article>
+                        );
+                      })}
+                    </div>
+                    <div className="judge-status-strip">
+                      <span>{playbackUnlocked ? "Decision unlocked" : "Both tracks must finish once"}</span>
+                      <strong>{assignmentExpired ? "Judging window expired" : `Time left ${countdownLabel}`}</strong>
+                    </div>
+                    <button
+                      disabled={!playbackUnlocked || !selectedWinnerId || assignmentExpired || isBusy}
+                      onClick={() => void handleJudgeSubmission()}
+                      type="button"
+                    >
+                      Submit decision
+                    </button>
                   </>
                 ) : (
                   <>

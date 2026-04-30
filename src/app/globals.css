@@ -1773,6 +1773,43 @@ button {
   padding: 1rem;
 }
 
+.judge-audio-gate {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 0.35rem;
+}
+
+.judge-audio-gate button,
+.judge-select,
+.artist-room-panel button {
+  background: linear-gradient(180deg, #f0ce79, #9f641b 58%, #462404);
+  border: 1px solid rgba(255, 226, 154, 0.5);
+  color: #140c03;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  min-height: 2.8rem;
+  padding: 0 0.75rem;
+  text-transform: uppercase;
+}
+
+.judge-select {
+  margin-top: 0.35rem;
+}
+
+.judge-select.is-selected {
+  box-shadow: 0 0 24px rgba(255, 205, 91, 0.2);
+  filter: brightness(1.08);
+}
+
+.judge-audio-gate button:disabled,
+.judge-select:disabled,
+.artist-room-panel button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+  opacity: 0.52;
+}
+
 .judge-playback-card span,
 .judge-playback-card em {
   color: var(--muted);
@@ -1787,6 +1824,26 @@ button {
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1.3rem;
   line-height: 1;
+}
+
+.judge-status-strip {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.035);
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 1fr auto;
+  margin-bottom: 0.75rem;
+  padding: 0.85rem 1rem;
+}
+
+.judge-status-strip span {
+  color: rgba(246, 230, 188, 0.74);
+  font-size: 0.85rem;
+}
+
+.judge-status-strip strong {
+  color: var(--gold-bright);
+  font-size: 1rem;
 }
 
 @keyframes portalSpin {
@@ -2016,7 +2073,10 @@ button {
   .artist-judge-actions,
   .pilot-assignment-grid,
   .artist-dashboard-header,
-  .artist-room-header {
+  .artist-room-header,
+  .judge-playback-grid,
+  .judge-audio-gate,
+  .judge-status-strip {
     grid-template-columns: 1fr;
   }
 
