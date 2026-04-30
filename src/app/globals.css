@@ -1565,6 +1565,199 @@ button {
   text-transform: uppercase;
 }
 
+.artist-entry-page,
+.artist-dashboard-page,
+.artist-room-page {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(145, 59, 255, 0.18), transparent 28rem),
+    radial-gradient(circle at 82% 14%, rgba(228, 166, 52, 0.16), transparent 30rem),
+    linear-gradient(180deg, #050505 0%, #100d09 50%, #050403 100%);
+  color: var(--ink);
+  min-height: 100svh;
+  padding: clamp(1rem, 2vw, 2rem);
+}
+
+.artist-entry-panel,
+.artist-dashboard-shell,
+.artist-room-shell,
+.artist-dashboard-card,
+.artist-dashboard-panel,
+.artist-room-panel {
+  background: rgba(8, 7, 5, 0.82);
+  border: 1px solid rgba(255, 205, 91, 0.28);
+  box-shadow: 0 0 28px rgba(0, 0, 0, 0.28);
+}
+
+.artist-entry-panel,
+.artist-dashboard-shell,
+.artist-room-shell {
+  margin: 0 auto;
+  max-width: 76rem;
+  padding: 1.2rem;
+}
+
+.artist-entry-panel {
+  max-width: 34rem;
+}
+
+.artist-entry-kicker {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.artist-entry-panel h1,
+.artist-dashboard-header h1,
+.artist-room-header h1 {
+  color: var(--gold);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2rem, 4vw, 3.6rem);
+  margin: 0.25rem 0;
+  text-transform: uppercase;
+}
+
+.artist-entry-panel p,
+.artist-dashboard-header p,
+.artist-room-header p,
+.artist-room-panel p,
+.artist-dashboard-panel p {
+  color: rgba(246, 230, 188, 0.78);
+  line-height: 1.55;
+}
+
+.artist-entry-form,
+.artist-dashboard-panel,
+.artist-room-panel,
+.artist-dashboard-event {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.artist-entry-form label,
+.artist-dashboard-panel label,
+.artist-room-panel label {
+  color: rgba(246, 230, 188, 0.76);
+  display: grid;
+  font-size: 0.78rem;
+  font-weight: 900;
+  gap: 0.35rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.artist-entry-form input,
+.artist-dashboard-panel input,
+.artist-dashboard-panel select,
+.artist-room-panel input {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 205, 91, 0.28);
+  color: var(--ink);
+  min-height: 2.8rem;
+  padding: 0 0.75rem;
+}
+
+.artist-entry-form button,
+.artist-dashboard-panel button,
+.artist-room-panel button,
+.artist-room-link {
+  background: linear-gradient(180deg, #f0ce79, #9f641b 58%, #462404);
+  border: 1px solid rgba(255, 226, 154, 0.5);
+  color: #140c03;
+  display: inline-flex;
+  font-weight: 950;
+  justify-content: center;
+  letter-spacing: 0.08em;
+  min-height: 2.8rem;
+  padding: 0.8rem 1rem;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.artist-room-link.secondary {
+  align-self: start;
+}
+
+.artist-entry-message {
+  background: rgba(255, 205, 91, 0.12);
+  border: 1px solid rgba(255, 205, 91, 0.24);
+  color: var(--gold-bright);
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+}
+
+.artist-entry-back {
+  color: var(--gold-bright);
+  display: inline-block;
+  margin-top: 1rem;
+}
+
+.artist-dashboard-header,
+.artist-room-header {
+  align-items: end;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr auto;
+  margin-bottom: 1rem;
+}
+
+.artist-dashboard-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
+
+.artist-dashboard-card,
+.artist-dashboard-panel,
+.artist-room-panel {
+  padding: 1rem;
+}
+
+.artist-dashboard-card span,
+.artist-dashboard-panel h2,
+.artist-room-panel h2 {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.artist-dashboard-card strong,
+.artist-dashboard-panel strong,
+.artist-room-panel strong,
+.artist-dashboard-event strong {
+  color: var(--gold-bright);
+  display: block;
+  font-size: 1.4rem;
+  margin-top: 0.35rem;
+}
+
+.artist-dashboard-card em,
+.artist-dashboard-event span,
+.artist-room-panel em {
+  color: rgba(246, 230, 188, 0.72);
+  display: block;
+  font-size: 0.85rem;
+  font-style: normal;
+  margin-top: 0.2rem;
+}
+
+.artist-dashboard-columns,
+.artist-room-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
+
+.artist-dashboard-panel-wide,
+.artist-room-panel-wide {
+  grid-column: 1 / -1;
+}
+
 .judge-playback-grid {
   display: grid;
   gap: 1rem;
@@ -1678,7 +1871,10 @@ button {
   }
 
   .artist-grid,
-  .artist-flow-grid {
+  .artist-flow-grid,
+  .artist-dashboard-grid,
+  .artist-dashboard-columns,
+  .artist-room-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1818,7 +2014,9 @@ button {
   .artist-duty,
   .artist-versus,
   .artist-judge-actions,
-  .pilot-assignment-grid {
+  .pilot-assignment-grid,
+  .artist-dashboard-header,
+  .artist-room-header {
     grid-template-columns: 1fr;
   }
 

@@ -24,6 +24,7 @@ import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { isValidEmail } from "@/app/lib/protocol";
 
 type ProtocolAction =
+  | "upsertArtist"
   | "deposit"
   | "joinEvent"
   | "closeQueue"
@@ -745,6 +746,31 @@ export async function POST(request: Request) {
   resolveExpiredAssignments(state);
 
   try {
+    if (action === "upsertArtist") {
+      const name = String(body?.name || "").trim();
+      const email = String(body?.email || "").trim().toLowerCase();
+
+      if (name.length < 2 || !isValidEmail(email)) {
+        return NextResponse.json({ error: "Name and valid email are required." }, { status: 400 });
+      }
+
+      let artist = state.artists.find((entry) => entry.email === email);
+      if (!artist) {
+        artist = {
+          id: makeId(),
+          name,
+          email,
+          walletCents: 0,
+          rewardCents: 0,
+          status: "registered",
+          createdAt: new Date().toISOString(),
+        };
+        state.artists.push(artist);
+      } else {
+        artist.name = name;
+      }
+    }
+
     if (action === "deposit") {
       const name = String(body?.name || "").trim();
       const email = String(body?.email || "").trim().toLowerCase();

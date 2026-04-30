@@ -458,6 +458,7 @@ export default function ArenaPage() {
                 <span>Wallet {money(artistMap.get(artistViewId)?.walletCents || 0)}</span>
                 <span>Status {artistMap.get(artistViewId)?.status || "waiting"}</span>
                 <span>Event {artistEvent?.title || "Not entered yet"}</span>
+                <Link href={`/artist/${artistViewId}`}>Open artist dashboard</Link>
               </div>
             </article>
 
