@@ -173,7 +173,6 @@ export default function ArenaPage() {
   });
   const [submissionFile, setSubmissionFile] = useState<File | null>(null);
   const [uploadLabel, setUploadLabel] = useState("");
-  const [isClaimingAssignment, setIsClaimingAssignment] = useState(false);
   const [hostJudging, setHostJudging] = useState({
     assignmentId: "",
     selectedWinnerArtistId: "",
@@ -329,15 +328,6 @@ export default function ArenaPage() {
     });
   }
 
-  async function claimAssignment(artistId: string) {
-    setIsClaimingAssignment(true);
-    try {
-      await postProtocol("claimAssignment", { artistId });
-    } finally {
-      setIsClaimingAssignment(false);
-    }
-  }
-
   const selectedEvent = payload?.events.find((event) => event.id === selectedEventId) || payload?.events[0];
   const artistMap = useMemo(() => new Map(payload?.artists.map((artist) => [artist.id, artist]) || []), [payload]);
   const artistEvent = payload?.events.find((event) => event.entries.some((entry) => entry.artistId === artistViewId));
@@ -345,8 +335,7 @@ export default function ArenaPage() {
     (entry) => entry.artistId === artistViewId && entry.eventId === artistEvent?.id && entry.round === artistEvent?.currentRound,
   );
   const artistAssignment = payload?.assignments.find(
-    (assignment) =>
-      assignment.judgeArtistId === artistViewId && (assignment.status === "assigned" || assignment.status === "opened"),
+    (assignment) => assignment.judgeArtistId === artistViewId && assignment.status === "assigned",
   );
   const artistBattle = payload?.battles.find((battle) => battle.id === artistAssignment?.battleId);
   const availableAssignments = useMemo(() => {
@@ -354,7 +343,7 @@ export default function ArenaPage() {
       return [];
     }
 
-    return payload.assignments.filter((assignment) => assignment.status === "assigned" || assignment.status === "opened");
+    return payload.assignments.filter((assignment) => assignment.status === "assigned");
   }, [payload]);
   const selectedAssignment = payload?.assignments.find((assignment) => assignment.id === hostJudging.assignmentId);
   const selectedBattle = payload?.battles.find((battle) => battle.id === selectedAssignment?.battleId);
@@ -550,28 +539,19 @@ export default function ArenaPage() {
                     : artistEvent?.phase === "complete"
                       ? "Final reveal pending"
                       : artistEvent?.phase === "judging"
-                        ? "Waiting in the live queue"
+                        ? "Judging wave active"
                         : "Awaiting next matchup"}
                 </strong>
                 <p>
                   {artistAssignment
-                    ? "Listen to both artists and choose who felt stronger. Once you submit, the system advances the winner and prepares the next available matchup."
+                    ? "Your judgment card was issued with the rest of the wave. The timer is already live, so compare both tracks and make your choice before it expires."
                     : artistEvent?.phase === "judging"
-                      ? "You are active and ready. Pull the next available matchup when the queue has one for you."
+                      ? "Judging cards were released at the same time for this wave. If you did not receive one, stay on standby until the next distribution."
                       : "Arena recalibrating. Stay ready. Your next assignment appears only when the system needs your vote."}
                 </p>
                 <span>
                   {artistAssignment ? `Decision window ${relativeCountdown(artistAssignment.dueAt)}` : "Stand by for next call"}
                 </span>
-                {!artistAssignment && artistEvent?.phase === "judging" ? (
-                  <button
-                    disabled={isBusy || isClaimingAssignment}
-                    onClick={() => void claimAssignment(artistViewId)}
-                    type="button"
-                  >
-                    {isClaimingAssignment ? "Checking queue..." : "Pull next matchup"}
-                  </button>
-                ) : null}
               </div>
             </article>
 
@@ -630,13 +610,6 @@ export default function ArenaPage() {
                     })}
                   </div>
                   <div className="artist-judge-actions">
-                    <button
-                      disabled={isBusy || !artistAssignment || artistAssignment.status !== "assigned"}
-                      onClick={() => postProtocol("openAssignment", { assignmentId: artistAssignment.id })}
-                      type="button"
-                    >
-                      Open decision window
-                    </button>
                     <button disabled={isBusy || !artistChoice} type="submit">
                       Submit decision
                     </button>
@@ -779,15 +752,15 @@ export default function ArenaPage() {
               <span className="pilot-step">04 Assign</span>
               <h2>Assignment engine</h2>
               <p>
-                Secret sauce stays here: one live global matchup queue, random first-available assignment pulls, cross-event
-                constraints, and automatic resolution if a timer burns out.
+                Secret sauce stays here: synchronized judging waves, cross-event constraints, one active card per artist,
+                and automatic resolution if a timer burns out.
               </p>
               <button
                 disabled={isBusy || selectedEvent.phase === "queue"}
                 onClick={() => postProtocol("generateJudgeAssignments", { eventId: selectedEvent.id })}
                 type="button"
               >
-                Sync global queue
+                Distribute judging wave
               </button>
               <button disabled={isBusy} onClick={() => postProtocol("finalizeRound", { eventId: selectedEvent.id })} type="button">
                 Finalize round
@@ -839,13 +812,7 @@ export default function ArenaPage() {
                   })}
                 </select>
               </label>
-              <button
-                disabled={isBusy || !hostJudging.assignmentId}
-                onClick={() => postProtocol("openAssignment", { assignmentId: hostJudging.assignmentId })}
-                type="button"
-              >
-                Open 15-minute timer
-              </button>
+              {selectedAssignment?.dueAt ? <p className="artist-muted">Wave timer: {relativeCountdown(selectedAssignment.dueAt)}</p> : null}
               {selectedBattle ? (
                 <div className="judge-playback-grid">
                   {[selectedBattle.artistAId, selectedBattle.artistBId].map((artistId, index) => {

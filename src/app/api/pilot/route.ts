@@ -29,8 +29,6 @@ type ProtocolAction =
   | "closeQueue"
   | "submit"
   | "generateJudgeAssignments"
-  | "claimAssignment"
-  | "openAssignment"
   | "judge"
   | "finalizeRound"
   | "reset";
@@ -75,8 +73,7 @@ function getSubmissionForBattle(state: ProtocolState, battle: ProtocolBattle) {
 
 function getActiveAssignment(state: ProtocolState, judgeArtistId: string) {
   return state.assignments.find(
-    (assignment) =>
-      assignment.judgeArtistId === judgeArtistId && (assignment.status === "assigned" || assignment.status === "opened"),
+    (assignment) => assignment.judgeArtistId === judgeArtistId && assignment.status === "assigned",
   );
 }
 
@@ -185,7 +182,7 @@ function resolveExpiredAssignments(state: ProtocolState) {
   let changed = false;
 
   state.assignments
-    .filter((assignment) => assignment.status === "opened" && assignment.dueAt && new Date(assignment.dueAt) < new Date())
+    .filter((assignment) => assignment.status === "assigned" && assignment.dueAt && new Date(assignment.dueAt) < new Date())
     .forEach((assignment) => {
       assignment.status = "expired";
       autoResolveBattle(state, assignment.battleId);
@@ -227,60 +224,75 @@ function canJudgeBattle(state: ProtocolState, judgeArtistId: string, battle: Pro
   return !judgedAlready;
 }
 
-function assignNextBattle(state: ProtocolState, judgeArtistId: string) {
-  const artist = state.artists.find((entry) => entry.id === judgeArtistId);
-  if (!artist) {
-    return null;
+function distributeJudgingWave(state: ProtocolState, eventId: string) {
+  const event = state.events.find((entry) => entry.id === eventId);
+  if (!event) {
+    return { distributed: 0 };
   }
 
-  const battlePool = shuffle(
+  const waveStartedAt = new Date().toISOString();
+  const waveDueAt = addMinutes(new Date(waveStartedAt), JUDGING_WINDOW_MINUTES);
+  const roundBattles = shuffle(
     state.battles.filter(
       (battle) =>
+        battle.eventId === eventId &&
+        battle.round === event.currentRound &&
         battle.status !== "complete" &&
-        !state.assignments.some(
-          (assignment) => assignment.battleId === battle.id && (assignment.status === "assigned" || assignment.status === "opened"),
-        ),
+        !!getSubmissionForBattle(state, battle) &&
+        !state.assignments.some((assignment) => assignment.battleId === battle.id && assignment.status === "assigned"),
     ),
   );
 
-  const pickedBattle = battlePool.find((battle) => canJudgeBattle(state, judgeArtistId, battle));
-  if (!pickedBattle) {
-    if (artist.status !== "winner" && artist.status !== "eliminated") {
-      artist.status = "submitted";
+  const usedJudges = new Set<string>();
+  let distributed = 0;
+
+  roundBattles.forEach((battle) => {
+    const eligibleJudges = shuffle(
+      state.artists.filter((artist) => {
+        if (usedJudges.has(artist.id)) {
+          return false;
+        }
+
+        if (artist.status === "winner" || artist.status === "eliminated") {
+          return false;
+        }
+
+        if (getActiveAssignment(state, artist.id)) {
+          return false;
+        }
+
+        return canJudgeBattle(state, artist.id, battle);
+      }),
+    );
+
+    const judge = eligibleJudges[0];
+    if (!judge) {
+      return;
     }
-    return null;
+
+    state.assignments.push({
+      id: makeId(),
+      battleId: battle.id,
+      judgeArtistId: judge.id,
+      status: "assigned",
+      assignedAt: waveStartedAt,
+      openedAt: waveStartedAt,
+      dueAt: waveDueAt,
+      completedAt: null,
+    });
+
+    battle.status = "judging";
+    judge.status = "judging";
+    usedJudges.add(judge.id);
+    distributed += 1;
+  });
+
+  if (distributed > 0) {
+    event.phase = "judging";
+    event.judgingDeadline = waveDueAt;
   }
 
-  const assignment = {
-    id: makeId(),
-    battleId: pickedBattle.id,
-    judgeArtistId,
-    status: "assigned" as const,
-    assignedAt: new Date().toISOString(),
-    openedAt: null,
-    dueAt: null,
-    completedAt: null,
-  };
-
-  state.assignments.push(assignment);
-  pickedBattle.status = "judging";
-  artist.status = "judging";
-  return assignment;
-}
-
-function syncGlobalQueue(state: ProtocolState) {
-  const eligibleArtists = shuffle(
-    state.artists.filter(
-      (artist) =>
-        artist.status !== "winner" &&
-        artist.status !== "eliminated" &&
-        !getActiveAssignment(state, artist.id),
-    ),
-  );
-
-  eligibleArtists.forEach((artist) => {
-    assignNextBattle(state, artist.id);
-  });
+  return { distributed };
 }
 
 function summarize(state: ProtocolState) {
@@ -730,7 +742,7 @@ export async function POST(request: Request) {
   }
 
   const state = await loadState();
-  const expiredResolved = resolveExpiredAssignments(state);
+  resolveExpiredAssignments(state);
 
   try {
     if (action === "deposit") {
@@ -905,32 +917,16 @@ export async function POST(request: Request) {
     }
 
     if (action === "generateJudgeAssignments") {
-      syncGlobalQueue(state);
-    }
+      const eventId = String(body?.eventId || "");
+      const event = state.events.find((entry) => entry.id === eventId);
 
-    if (action === "claimAssignment") {
-      const artistId = String(body?.artistId || "");
-      const artist = state.artists.find((entry) => entry.id === artistId);
-
-      if (!artist) {
-        return NextResponse.json({ error: "Artist is required." }, { status: 400 });
+      if (!event) {
+        return NextResponse.json({ error: "Event is required." }, { status: 400 });
       }
 
-      assignNextBattle(state, artistId);
-    }
-
-    if (action === "openAssignment") {
-      const assignmentId = String(body?.assignmentId || "");
-      const assignment = state.assignments.find((entry) => entry.id === assignmentId);
-
-      if (!assignment) {
-        return NextResponse.json({ error: "Assignment is required." }, { status: 400 });
-      }
-
-      if (assignment.status === "assigned") {
-        assignment.status = "opened";
-        assignment.openedAt = new Date().toISOString();
-        assignment.dueAt = addMinutes(new Date(), JUDGING_WINDOW_MINUTES);
+      const { distributed } = distributeJudgingWave(state, eventId);
+      if (distributed === 0) {
+        return NextResponse.json({ error: "No eligible judging wave could be distributed yet." }, { status: 409 });
       }
     }
 
@@ -977,16 +973,15 @@ export async function POST(request: Request) {
       assignment.completedAt = new Date().toISOString();
       resolveBattleWinner(state, battle.id, selectedWinnerArtistId, assignment.completedAt);
       tryAdvanceEvent(state, battle.eventId);
-      assignNextBattle(state, assignment.judgeArtistId);
+      const judge = state.artists.find((artist) => artist.id === assignment.judgeArtistId);
+      if (judge && judge.status !== "winner" && judge.status !== "eliminated") {
+        judge.status = "submitted";
+      }
     }
 
     if (action === "finalizeRound") {
       const eventId = String(body?.eventId || "");
       tryAdvanceEvent(state, eventId);
-    }
-
-    if (expiredResolved) {
-      syncGlobalQueue(state);
     }
 
     await persistState(state);
