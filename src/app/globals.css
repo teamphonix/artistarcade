@@ -729,6 +729,167 @@ button {
   font-style: italic;
 }
 
+.hub-page {
+  padding: clamp(1rem, 2vw, 2rem);
+}
+
+.hub-shell {
+  margin: 0 auto;
+  max-width: 84rem;
+}
+
+.hub-header,
+.hub-hero,
+.hub-journey {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+}
+
+.hub-header {
+  grid-template-columns: 1fr auto;
+  margin-bottom: 1rem;
+}
+
+.hub-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.hub-nav a,
+.hub-primary,
+.hub-secondary,
+.hub-action-card a {
+  border: 1px solid rgba(255, 205, 91, 0.32);
+  color: var(--gold-bright);
+  display: inline-flex;
+  justify-content: center;
+  min-height: 2.7rem;
+  padding: 0.8rem 1rem;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.hub-nav a:hover,
+.hub-primary:hover,
+.hub-secondary:hover,
+.hub-action-card a:hover {
+  box-shadow: 0 0 22px rgba(255, 205, 91, 0.14);
+}
+
+.hub-primary {
+  background: linear-gradient(180deg, #f0ce79, #9f641b 58%, #462404);
+  color: #140c03;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+}
+
+.hub-secondary {
+  background: rgba(8, 7, 5, 0.82);
+}
+
+.hub-hero,
+.hub-actions,
+.hub-journey {
+  background: rgba(8, 7, 5, 0.82);
+  border: 1px solid rgba(255, 205, 91, 0.28);
+  box-shadow: 0 0 28px rgba(0, 0, 0, 0.28);
+  margin-bottom: 1rem;
+  padding: 1.2rem;
+}
+
+.hub-hero {
+  grid-template-columns: 1.3fr minmax(14rem, 18rem);
+}
+
+.hub-kicker {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.hub-hero-copy h1,
+.hub-journey-copy h2 {
+  color: var(--gold);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2rem, 4vw, 4rem);
+  line-height: 0.95;
+  margin: 0.4rem 0 0.7rem;
+  text-transform: uppercase;
+}
+
+.hub-hero-copy p,
+.hub-journey-copy p,
+.hub-action-card p,
+.hub-step p {
+  color: rgba(246, 230, 188, 0.78);
+  line-height: 1.55;
+}
+
+.hub-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.hub-status-board {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.hub-status-board div,
+.hub-step,
+.hub-action-card {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 205, 91, 0.18);
+  padding: 1rem;
+}
+
+.hub-status-board span,
+.hub-action-card span,
+.hub-step span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.hub-status-board strong,
+.hub-action-card strong,
+.hub-step strong {
+  color: var(--gold-bright);
+  display: block;
+  font-size: 1.2rem;
+  margin-top: 0.35rem;
+}
+
+.hub-actions {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hub-action-card a {
+  margin-top: 0.6rem;
+}
+
+.hub-journey {
+  grid-template-columns: minmax(16rem, 24rem) 1fr;
+}
+
+.hub-journey-steps {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .fatekeeper-throne {
   align-items: center;
   display: flex;
@@ -2079,7 +2240,9 @@ button {
   .artist-room-grid,
   .artist-result-matchups,
   .artist-type-grid,
-  .artist-event-grid {
+  .artist-event-grid,
+  .hub-actions,
+  .hub-journey-steps {
     grid-template-columns: 1fr;
   }
 
@@ -2216,6 +2379,9 @@ button {
   .pilot-columns,
   .pilot-tabs,
   .pilot-view-switch,
+  .hub-header,
+  .hub-hero,
+  .hub-journey,
   .artist-duty,
   .artist-versus,
   .artist-judge-actions,
@@ -2232,6 +2398,12 @@ button {
 
   .pilot-back {
     position: static;
+  }
+
+  .hub-nav,
+  .hub-hero-actions,
+  .artist-dashboard-links {
+    justify-content: flex-start;
   }
 
   .pilot-row {
