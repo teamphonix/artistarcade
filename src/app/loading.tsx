@@ -18,10 +18,10 @@ export default function Loading() {
           <Image
             alt="The Artist Arcade"
             className="loading-logo"
-            height={735}
+            height={1024}
             priority
-            src="/brand/artist-arcade-loading-logo.png"
-            width={760}
+            src="/brand/artist-arcade-primary.jpg"
+            width={1024}
           />
         </div>
 

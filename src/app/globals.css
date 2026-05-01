@@ -12,6 +12,704 @@
   --panel: rgba(8, 7, 5, 0.82);
 }
 
+/* Fresh platform direction: modern tournament product shell */
+.aa-platform-page,
+.artist-entry-page,
+.artist-dashboard-page,
+.artist-room-page,
+.pilot-page {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(218, 164, 58, 0.16), transparent 30rem),
+    radial-gradient(circle at 78% 12%, rgba(120, 126, 138, 0.14), transparent 28rem),
+    linear-gradient(180deg, #101419 0%, #0b0e12 46%, #07090c 100%);
+  color: #f3ead7;
+  min-height: 100svh;
+}
+
+.aa-platform-bg,
+.aa-platform-page::before,
+.artist-entry-page::before,
+.artist-dashboard-page::before,
+.artist-room-page::before,
+.pilot-page::before {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  content: "";
+  inset: 0;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.7), transparent 76%);
+  pointer-events: none;
+  position: fixed;
+  z-index: 0;
+}
+
+.aa-platform-page > *,
+.artist-entry-page > *,
+.artist-dashboard-page > *,
+.artist-room-page > *,
+.pilot-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+.aa-topbar {
+  align-items: center;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr auto;
+  margin: 0 auto;
+  max-width: 86rem;
+  padding: 1rem clamp(1rem, 3vw, 2rem);
+}
+
+.aa-wordmark {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.8rem;
+  text-decoration: none;
+}
+
+.aa-wordmark img {
+  border-radius: 1rem;
+  height: 3rem;
+  object-fit: cover;
+  width: 3rem;
+}
+
+.aa-wordmark span {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.aa-wordmark strong,
+.aa-wordmark em,
+.aa-kicker,
+.aa-nav a,
+.aa-button,
+.pilot-kicker,
+.artist-entry-kicker {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.aa-wordmark strong {
+  color: #fff3cf;
+  font-size: 0.94rem;
+}
+
+.aa-wordmark em {
+  color: #9ba3ae;
+  font-size: 0.68rem;
+  font-style: normal;
+}
+
+.aa-nav,
+.aa-hero-actions,
+.artist-dashboard-links,
+.hub-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.aa-nav a,
+.aa-button,
+.hub-nav a,
+.hub-primary,
+.hub-secondary,
+.artist-room-link,
+.artist-entry-form button,
+.artist-dashboard-panel button,
+.artist-room-panel button,
+.pilot-card button,
+.pilot-panel button,
+.judge-audio-gate button,
+.judge-select {
+  align-items: center;
+  border-radius: 0.7rem;
+  display: inline-flex;
+  font-weight: 850;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.72rem 1rem;
+  text-decoration: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, filter 160ms ease, transform 160ms ease;
+}
+
+.aa-nav a,
+.hub-nav a,
+.hub-secondary,
+.artist-room-link.secondary {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #d8dde5;
+}
+
+.aa-button-primary,
+.hub-primary,
+.artist-room-link,
+.artist-entry-form button,
+.artist-dashboard-panel button,
+.artist-room-panel button,
+.pilot-card button,
+.pilot-panel button,
+.judge-audio-gate button,
+.judge-select {
+  background: linear-gradient(180deg, #f8d982, #d69c2e 54%, #8b5817);
+  border: 1px solid rgba(255, 232, 166, 0.46);
+  color: #101012;
+  text-shadow: 0 1px 0 rgba(255, 247, 211, 0.42);
+}
+
+.aa-button-secondary {
+  background: #171c23;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f4e6c4;
+}
+
+.aa-nav a:hover,
+.aa-button:hover,
+.artist-room-link:hover,
+.artist-dashboard-panel button:hover,
+.pilot-panel button:hover {
+  box-shadow: 0 0 0 1px rgba(245, 204, 98, 0.2), 0 16px 42px rgba(0, 0, 0, 0.24);
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.aa-hero,
+.aa-section,
+.artist-entry-panel,
+.artist-dashboard-shell,
+.artist-room-shell,
+.pilot-hero,
+.pilot-metrics,
+.pilot-tabs,
+.pilot-columns,
+.pilot-grid {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 86rem;
+}
+
+.aa-hero {
+  align-items: center;
+  display: grid;
+  gap: clamp(1.5rem, 4vw, 3rem);
+  grid-template-columns: minmax(0, 1.05fr) minmax(18rem, 0.95fr);
+  min-height: min(42rem, calc(100svh - 6rem));
+  padding: clamp(2rem, 6vw, 5.5rem) clamp(1rem, 3vw, 2rem);
+}
+
+.aa-kicker,
+.hub-kicker,
+.pilot-kicker,
+.artist-entry-kicker {
+  color: #d7a743;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.aa-hero h1,
+.aa-section-head h2,
+.hub-hero-copy h1,
+.hub-journey-copy h2,
+.artist-entry-panel h1,
+.artist-dashboard-header h1,
+.artist-room-header h1,
+.pilot-hero h1 {
+  color: #fff4d8;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-size: clamp(2.45rem, 7vw, 6.8rem);
+  letter-spacing: 0;
+  line-height: 0.92;
+  margin: 0.45rem 0 1rem;
+  text-transform: none;
+}
+
+.aa-hero p,
+.aa-section p,
+.hub-hero-copy p,
+.hub-journey-copy p,
+.artist-entry-panel p,
+.artist-dashboard-header p,
+.artist-room-header p,
+.artist-room-panel p,
+.artist-dashboard-panel p,
+.pilot-hero p,
+.pilot-panel p {
+  color: #aeb6c2;
+  line-height: 1.65;
+}
+
+.aa-hero-copy p {
+  font-size: clamp(1rem, 1.6vw, 1.22rem);
+  max-width: 43rem;
+}
+
+.aa-hero-card {
+  background:
+    linear-gradient(180deg, rgba(25, 30, 38, 0.9), rgba(10, 13, 18, 0.95)),
+    radial-gradient(circle at 50% 0, rgba(218, 164, 58, 0.16), transparent 60%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1.25rem;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+  display: grid;
+  gap: 1rem;
+  overflow: hidden;
+  padding: clamp(1rem, 2vw, 1.35rem);
+}
+
+.aa-hero-logo {
+  aspect-ratio: 1;
+  background: #111820;
+  border-radius: 1rem;
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+}
+
+.aa-brand-crest {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.38));
+  padding: 0;
+  width: 100%;
+}
+
+.aa-brand-crest::before {
+  content: none;
+}
+
+.aa-brand-crest img {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.aa-hero-logo .aa-brand-crest {
+  width: min(25rem, 84%);
+}
+
+.aa-brand-crest.is-compact {
+  width: min(9rem, 42vw);
+}
+
+.aa-live-strip {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.85rem;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.9rem;
+}
+
+.aa-live-strip span,
+.aa-stat-row span,
+.aa-tournament-card span,
+.aa-flow-grid span,
+.artist-dashboard-card span,
+.artist-dashboard-panel h2,
+.artist-room-panel h2,
+.artist-result-header span,
+.artist-result-track span,
+.artist-result-footer span,
+.pilot-card h2,
+.pilot-panel h2,
+.pilot-metrics span,
+.protocol-summary span {
+  color: #8993a1;
+  font-size: 0.76rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.aa-live-strip strong,
+.aa-stat-row strong,
+.aa-tournament-card strong,
+.aa-flow-grid strong,
+.artist-dashboard-card strong,
+.artist-dashboard-panel strong,
+.artist-room-panel strong,
+.artist-dashboard-event strong,
+.artist-result-header strong,
+.artist-result-track strong,
+.artist-result-footer strong,
+.pilot-metrics strong,
+.pilot-status strong {
+  color: #fff0c6;
+}
+
+.aa-stat-row {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.aa-stat-row div,
+.aa-tournament-card,
+.aa-flow-grid article,
+.artist-dashboard-card,
+.artist-dashboard-panel,
+.artist-room-panel,
+.artist-result-card,
+.pilot-card,
+.pilot-panel,
+.pilot-metrics article,
+.pilot-status,
+.hub-action-card,
+.hub-step {
+  background: rgba(17, 22, 29, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 0.9rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+}
+
+.aa-stat-row div {
+  padding: 0.8rem;
+}
+
+.aa-stat-row strong {
+  display: block;
+  font-size: 1.12rem;
+  margin-top: 0.18rem;
+}
+
+.aa-section {
+  padding: 0 clamp(1rem, 3vw, 2rem) clamp(2rem, 4vw, 3.5rem);
+}
+
+.aa-section-head {
+  align-items: end;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr auto;
+  margin-bottom: 1rem;
+}
+
+.aa-section-head h2 {
+  font-size: clamp(1.7rem, 3.5vw, 3.2rem);
+  margin: 0.25rem 0 0;
+}
+
+.aa-tournament-grid,
+.aa-flow-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.aa-tournament-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.aa-flow-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.aa-tournament-card,
+.aa-flow-grid article {
+  min-height: 11rem;
+  padding: 1rem;
+}
+
+.aa-tournament-card {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.aa-tournament-card strong {
+  font-size: 1.6rem;
+}
+
+.aa-tournament-card div {
+  align-self: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.aa-tournament-card em {
+  background: rgba(215, 167, 67, 0.12);
+  border: 1px solid rgba(215, 167, 67, 0.22);
+  border-radius: 999px;
+  color: #f3d58d;
+  font-size: 0.78rem;
+  font-style: normal;
+  padding: 0.4rem 0.58rem;
+}
+
+.artist-entry-page,
+.artist-dashboard-page,
+.artist-room-page,
+.pilot-page {
+  padding: clamp(1rem, 2.5vw, 2rem);
+}
+
+.artist-entry-panel,
+.artist-dashboard-shell,
+.artist-room-shell,
+.pilot-hero,
+.pilot-metrics,
+.pilot-tabs,
+.pilot-columns,
+.pilot-grid {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.artist-entry-panel,
+.artist-dashboard-shell,
+.artist-room-shell {
+  padding: 0;
+}
+
+.artist-dashboard-header,
+.artist-room-header,
+.pilot-hero {
+  align-items: end;
+  background:
+    linear-gradient(180deg, rgba(23, 28, 36, 0.92), rgba(14, 18, 24, 0.94)),
+    radial-gradient(circle at 100% 0, rgba(215, 167, 67, 0.18), transparent 22rem);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 1rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.24);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr auto;
+  margin-bottom: 1rem;
+  padding: clamp(1rem, 2vw, 1.4rem);
+}
+
+.artist-entry-panel {
+  background:
+    linear-gradient(180deg, rgba(23, 28, 36, 0.92), rgba(14, 18, 24, 0.96)),
+    radial-gradient(circle at 50% 0, rgba(215, 167, 67, 0.14), transparent 22rem);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  margin: 12vh auto 0;
+  max-width: calc(100vw - 2rem);
+  overflow: hidden;
+  padding: 1.25rem;
+  width: min(34rem, calc(100vw - 2rem));
+}
+
+.artist-entry-panel * {
+  max-width: 100%;
+}
+
+.artist-entry-panel * {
+  max-width: 100%;
+}
+
+.artist-dashboard-grid,
+.pilot-metrics {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
+
+.pilot-metrics {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.artist-dashboard-card,
+.artist-dashboard-panel,
+.artist-room-panel,
+.artist-result-card,
+.pilot-card,
+.pilot-panel,
+.pilot-metrics article {
+  padding: 1rem;
+}
+
+.artist-dashboard-columns,
+.artist-room-grid,
+.pilot-columns,
+.artist-result-matchups,
+.judge-playback-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.artist-dashboard-panel-wide,
+.artist-room-panel-wide,
+.pilot-panel-wide {
+  grid-column: 1 / -1;
+}
+
+.artist-type-grid,
+.artist-event-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.artist-type-card,
+.artist-event-tile,
+.artist-versus button,
+.judge-playback-card,
+.artist-result-track,
+.artist-empty-state,
+.artist-wait-card,
+.artist-duty-step,
+.protocol-summary span,
+.pilot-row {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.8rem;
+  color: #f3ead7;
+}
+
+.artist-type-card,
+.artist-event-tile,
+.artist-versus button,
+.judge-playback-card,
+.artist-result-track,
+.artist-empty-state,
+.artist-wait-card,
+.artist-duty-step {
+  min-height: 9rem;
+  padding: 1rem;
+}
+
+.artist-type-card strong,
+.artist-event-tile strong,
+.artist-versus button strong,
+.judge-playback-card strong {
+  color: #fff0c6;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-size: 1.45rem;
+  text-transform: uppercase;
+}
+
+.artist-type-card.is-active,
+.artist-event-tile.is-active,
+.artist-type-card:hover,
+.artist-event-tile:hover,
+.artist-versus button.is-picked,
+.artist-versus button:hover,
+.pilot-tabs button.is-active,
+.pilot-tabs button:hover {
+  border-color: rgba(215, 167, 67, 0.56);
+  box-shadow: inset 0 0 0 1px rgba(215, 167, 67, 0.12), 0 18px 46px rgba(0, 0, 0, 0.22);
+}
+
+.artist-entry-form input,
+.artist-dashboard-panel input,
+.artist-dashboard-panel select,
+.artist-room-panel input,
+.pilot-card input,
+.pilot-card select,
+.pilot-panel input,
+.pilot-panel select {
+  background: #0b0f14;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.65rem;
+  color: #f3ead7;
+  min-height: 2.75rem;
+  outline: none;
+  padding: 0 0.8rem;
+}
+
+.artist-entry-form input:focus,
+.artist-dashboard-panel input:focus,
+.artist-dashboard-panel select:focus,
+.artist-room-panel input:focus,
+.pilot-card input:focus,
+.pilot-card select:focus,
+.pilot-panel input:focus,
+.pilot-panel select:focus {
+  border-color: rgba(215, 167, 67, 0.7);
+  box-shadow: 0 0 0 3px rgba(215, 167, 67, 0.12);
+}
+
+.pilot-tabs {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
+
+.pilot-tabs button {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.8rem;
+  color: #d8dde5;
+  min-height: 3rem;
+}
+
+.pilot-back,
+.artist-entry-back {
+  color: #f0c76d;
+}
+
+.artist-entry-message,
+.pilot-message {
+  background: rgba(215, 167, 67, 0.12);
+  border: 1px solid rgba(215, 167, 67, 0.22);
+  border-radius: 0.75rem;
+  color: #f5d78d;
+  padding: 0.8rem 1rem;
+}
+
+@media (max-width: 1000px) {
+  .aa-hero,
+  .aa-section-head,
+  .artist-dashboard-header,
+  .artist-room-header,
+  .pilot-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .aa-tournament-grid,
+  .aa-flow-grid,
+  .artist-dashboard-grid,
+  .pilot-metrics,
+  .artist-dashboard-columns,
+  .artist-room-grid,
+  .pilot-columns,
+  .artist-type-grid,
+  .artist-event-grid,
+  .artist-result-matchups,
+  .judge-playback-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .aa-topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .aa-nav {
+    justify-content: flex-start;
+  }
+
+  .aa-hero {
+    min-height: auto;
+    padding-top: 1.25rem;
+  }
+
+  .aa-stat-row,
+  .pilot-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .aa-hero h1,
+  .artist-dashboard-header h1,
+  .artist-room-header h1,
+  .pilot-hero h1 {
+    font-size: clamp(2.2rem, 13vw, 4rem);
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -2703,8 +3401,12 @@ button {
   }
 
   .loading-status p {
-    font-size: 0.74rem;
+    font-size: 0.62rem !important;
     line-height: 1.38;
+    max-width: calc(100vw - 2rem) !important;
+    overflow-wrap: anywhere;
+    width: calc(100vw - 2rem) !important;
+    word-break: normal;
   }
 
   .loading-status > span {
@@ -2713,5 +3415,275 @@ button {
 
   .loading-status {
     gap: 0.58rem;
+    width: calc(100vw - 2rem) !important;
+  }
+
+  .loading-bar {
+    width: calc(100vw - 2rem) !important;
+  }
+}
+
+/* Final cascade overrides for the fresh tournament direction */
+.artist-entry-page,
+.artist-dashboard-page,
+.artist-room-page,
+.pilot-page {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(218, 164, 58, 0.16), transparent 30rem),
+    radial-gradient(circle at 78% 12%, rgba(120, 126, 138, 0.14), transparent 28rem),
+    linear-gradient(180deg, #101419 0%, #0b0e12 46%, #07090c 100%);
+  color: #f3ead7;
+}
+
+.aa-brand-crest {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.38));
+  padding: 0;
+  width: 100%;
+}
+
+.aa-brand-crest::before {
+  content: none;
+}
+
+.aa-brand-crest img {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.aa-brand-crest.is-compact {
+  width: min(9rem, 42vw);
+}
+
+.aa-hero-logo {
+  display: grid;
+  place-items: center;
+}
+
+.aa-hero-logo .aa-brand-crest {
+  width: min(25rem, 84%);
+}
+
+.artist-entry-panel,
+.artist-dashboard-shell,
+.artist-room-shell,
+.pilot-hero,
+.pilot-metrics,
+.pilot-tabs,
+.pilot-columns,
+.pilot-grid {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.artist-entry-panel,
+.artist-dashboard-shell,
+.artist-room-shell {
+  padding: 0;
+}
+
+.artist-entry-panel {
+  background:
+    linear-gradient(180deg, rgba(23, 28, 36, 0.92), rgba(14, 18, 24, 0.96)),
+    radial-gradient(circle at 50% 0, rgba(215, 167, 67, 0.14), transparent 22rem);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  margin: 12vh auto 0;
+  max-width: calc(100vw - 2rem);
+  overflow: hidden;
+  padding: 1.25rem;
+  width: min(34rem, calc(100vw - 2rem));
+}
+
+.artist-dashboard-header,
+.artist-room-header,
+.pilot-hero {
+  align-items: end;
+  background:
+    linear-gradient(180deg, rgba(23, 28, 36, 0.92), rgba(14, 18, 24, 0.94)),
+    radial-gradient(circle at 100% 0, rgba(215, 167, 67, 0.18), transparent 22rem);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 1rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.24);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr auto;
+  margin-bottom: 1rem;
+  padding: clamp(1rem, 2vw, 1.4rem);
+}
+
+.artist-dashboard-card,
+.artist-dashboard-panel,
+.artist-room-panel,
+.artist-result-card,
+.pilot-card,
+.pilot-panel,
+.pilot-metrics article,
+.hub-action-card,
+.hub-step {
+  background: rgba(17, 22, 29, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 0.9rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+  padding: 1rem;
+}
+
+.artist-entry-panel h1,
+.artist-dashboard-header h1,
+.artist-room-header h1,
+.pilot-hero h1 {
+  color: #fff4d8;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-size: clamp(2.45rem, 7vw, 5.6rem);
+  letter-spacing: 0;
+  line-height: 0.92;
+  margin: 0.45rem 0 1rem;
+  text-transform: none;
+}
+
+.artist-entry-panel p,
+.artist-dashboard-header p,
+.artist-room-header p,
+.artist-room-panel p,
+.artist-dashboard-panel p,
+.pilot-hero p,
+.pilot-panel p {
+  color: #aeb6c2;
+  line-height: 1.65;
+}
+
+.artist-dashboard-card span,
+.artist-dashboard-panel h2,
+.artist-room-panel h2,
+.artist-result-header span,
+.artist-result-track span,
+.artist-result-footer span,
+.pilot-card h2,
+.pilot-panel h2,
+.pilot-metrics span,
+.protocol-summary span {
+  color: #8993a1;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-size: 0.76rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.artist-dashboard-card strong,
+.artist-dashboard-panel strong,
+.artist-room-panel strong,
+.artist-dashboard-event strong,
+.artist-result-header strong,
+.artist-result-track strong,
+.artist-result-footer strong,
+.pilot-metrics strong,
+.pilot-status strong {
+  color: #fff0c6;
+}
+
+.artist-room-link,
+.artist-entry-form button,
+.artist-dashboard-panel button,
+.artist-room-panel button,
+.pilot-card button,
+.pilot-panel button,
+.judge-audio-gate button,
+.judge-select {
+  align-items: center;
+  background: linear-gradient(180deg, #f8d982, #d69c2e 54%, #8b5817);
+  border: 1px solid rgba(255, 232, 166, 0.46);
+  border-radius: 0.7rem;
+  color: #101012;
+  display: inline-flex;
+  font-weight: 850;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.72rem 1rem;
+  text-decoration: none;
+  text-shadow: 0 1px 0 rgba(255, 247, 211, 0.42);
+  text-transform: uppercase;
+}
+
+.artist-room-link.secondary {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #d8dde5;
+  text-shadow: none;
+}
+
+.artist-type-card,
+.artist-event-tile,
+.artist-versus button,
+.judge-playback-card,
+.artist-result-track,
+.artist-empty-state,
+.artist-wait-card,
+.artist-duty-step,
+.protocol-summary span,
+.pilot-row {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.8rem;
+  color: #f3ead7;
+}
+
+.artist-type-card strong,
+.artist-event-tile strong,
+.artist-versus button strong,
+.judge-playback-card strong {
+  color: #fff0c6;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-size: 1.45rem;
+  text-transform: uppercase;
+}
+
+.artist-type-card.is-active,
+.artist-event-tile.is-active,
+.artist-type-card:hover,
+.artist-event-tile:hover,
+.artist-versus button.is-picked,
+.artist-versus button:hover,
+.pilot-tabs button.is-active,
+.pilot-tabs button:hover {
+  border-color: rgba(215, 167, 67, 0.56);
+  box-shadow: inset 0 0 0 1px rgba(215, 167, 67, 0.12), 0 18px 46px rgba(0, 0, 0, 0.22);
+}
+
+.artist-entry-form input,
+.artist-dashboard-panel input,
+.artist-dashboard-panel select,
+.artist-room-panel input,
+.pilot-card input,
+.pilot-card select,
+.pilot-panel input,
+.pilot-panel select {
+  background: #0b0f14;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.65rem;
+  color: #f3ead7;
+  width: 100%;
+}
+
+.artist-entry-form button {
+  width: 100%;
+}
+
+.pilot-tabs button {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.8rem;
+  color: #d8dde5;
+}
+
+@media (max-width: 1000px) {
+  .artist-dashboard-header,
+  .artist-room-header,
+  .pilot-hero {
+    grid-template-columns: 1fr;
   }
 }
