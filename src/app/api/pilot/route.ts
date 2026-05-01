@@ -25,6 +25,7 @@ import { isValidEmail } from "@/app/lib/protocol";
 
 type ProtocolAction =
   | "upsertArtist"
+  | "updateEvent"
   | "deposit"
   | "joinEvent"
   | "closeQueue"
@@ -805,6 +806,29 @@ export async function POST(request: Request) {
         note: "Wallet deposit",
         createdAt: new Date().toISOString(),
       });
+    }
+
+    if (action === "updateEvent") {
+      const eventId = String(body?.eventId || "");
+      const challengeTitle = String(body?.challengeTitle || "").trim();
+      const challengeDescription = String(body?.challengeDescription || "").trim();
+      const challengeAudioUrl = String(body?.challengeAudioUrl || "").trim();
+      const event = state.events.find((entry) => entry.id === eventId);
+
+      if (!event) {
+        return NextResponse.json({ error: "Event is required." }, { status: 400 });
+      }
+
+      if (challengeTitle.length < 2 || challengeDescription.length < 8 || !challengeAudioUrl) {
+        return NextResponse.json(
+          { error: "Challenge title, description, and beat upload are required." },
+          { status: 400 },
+        );
+      }
+
+      event.challengeTitle = challengeTitle;
+      event.challengeDescription = challengeDescription;
+      event.challengeAudioUrl = challengeAudioUrl;
     }
 
     if (action === "joinEvent") {

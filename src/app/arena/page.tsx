@@ -398,6 +398,14 @@ export default function ArenaPage() {
         </div>
       </section>
 
+      {viewMode === "host" ? (
+        <section className="pilot-host-link-wrap">
+          <Link className="artist-room-link" href="/host">
+            Open host control room
+          </Link>
+        </section>
+      ) : null}
+
       <section className="pilot-metrics" aria-label="Protocol metrics">
         <article>
           <span>Entry</span>
