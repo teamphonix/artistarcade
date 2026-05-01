@@ -813,22 +813,30 @@ export async function POST(request: Request) {
       const challengeTitle = String(body?.challengeTitle || "").trim();
       const challengeDescription = String(body?.challengeDescription || "").trim();
       const challengeAudioUrl = String(body?.challengeAudioUrl || "").trim();
+      const eventStartAt = String(body?.eventStartAt || "").trim();
       const event = state.events.find((entry) => entry.id === eventId);
 
       if (!event) {
         return NextResponse.json({ error: "Event is required." }, { status: 400 });
       }
 
-      if (challengeTitle.length < 2 || challengeDescription.length < 8 || !challengeAudioUrl) {
+      if (challengeTitle.length < 2 || challengeDescription.length < 8 || !challengeAudioUrl || !eventStartAt) {
         return NextResponse.json(
-          { error: "Challenge title, description, and beat upload are required." },
+          { error: "Challenge title, description, beat upload, and event start time are required." },
           { status: 400 },
         );
+      }
+
+      const startDate = new Date(eventStartAt);
+      if (Number.isNaN(startDate.getTime())) {
+        return NextResponse.json({ error: "Event start time is invalid." }, { status: 400 });
       }
 
       event.challengeTitle = challengeTitle;
       event.challengeDescription = challengeDescription;
       event.challengeAudioUrl = challengeAudioUrl;
+      event.queueClosedAt = startDate.toISOString();
+      event.submissionDeadline = addHours(startDate, SUBMISSION_WINDOW_HOURS);
     }
 
     if (action === "joinEvent") {
@@ -896,8 +904,9 @@ export async function POST(request: Request) {
       }
 
       event.phase = "submission";
-      event.queueClosedAt = new Date().toISOString();
-      event.submissionDeadline = addHours(new Date(), SUBMISSION_WINDOW_HOURS);
+      const scheduledStart = event.queueClosedAt ? new Date(event.queueClosedAt) : new Date();
+      event.queueClosedAt = scheduledStart.toISOString();
+      event.submissionDeadline = event.submissionDeadline || addHours(scheduledStart, SUBMISSION_WINDOW_HOURS);
       entries.forEach((entry) => {
         entry.status = "active";
       });

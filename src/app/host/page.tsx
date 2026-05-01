@@ -43,6 +43,7 @@ type EventSummary = {
   challengeAudioUrl: string;
   phase: string;
   currentRound: number;
+  queueClosedAt: string | null;
   queuedCount: number;
   openSlots: number;
   grossPotCents: number;
@@ -102,6 +103,78 @@ function relativeCountdown(date: string | null) {
   return `${hours}h ${rest}m`;
 }
 
+function formatEastern(date: string | null) {
+  if (!date) {
+    return "Not set";
+  }
+
+  return new Date(date).toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function getOffsetMinutes(date: Date, timeZone: string) {
+  const zonePart = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "shortOffset",
+  })
+    .formatToParts(date)
+    .find((part) => part.type === "timeZoneName")?.value;
+
+  const match = zonePart?.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
+  if (!match) {
+    return 0;
+  }
+
+  const sign = match[1] === "-" ? -1 : 1;
+  const hours = Number(match[2] || 0);
+  const minutes = Number(match[3] || 0);
+  return sign * (hours * 60 + minutes);
+}
+
+function easternInputToIso(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  const [datePart, timePart] = value.split("T");
+  if (!datePart || !timePart) {
+    return "";
+  }
+
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hour, minute] = timePart.split(":").map(Number);
+  let utcMillis = Date.UTC(year, month - 1, day, hour, minute);
+
+  for (let iteration = 0; iteration < 2; iteration += 1) {
+    const offsetMinutes = getOffsetMinutes(new Date(utcMillis), "America/New_York");
+    utcMillis = Date.UTC(year, month - 1, day, hour, minute) - offsetMinutes * 60_000;
+  }
+
+  return new Date(utcMillis).toISOString();
+}
+
+function isoToEasternInput(value: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(value));
+
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
+
 export default function HostPage() {
   const [payload, setPayload] = useState<ProtocolPayload | null>(null);
   const [message, setMessage] = useState("");
@@ -114,6 +187,7 @@ export default function HostPage() {
     challengeTitle: "",
     challengeDescription: "",
     challengeAudioUrl: "",
+    eventStartAtInput: "",
   });
 
   function applyEventDraft(event: EventSummary | null) {
@@ -125,6 +199,7 @@ export default function HostPage() {
       challengeTitle: event.challengeTitle,
       challengeDescription: event.challengeDescription,
       challengeAudioUrl: event.challengeAudioUrl,
+      eventStartAtInput: isoToEasternInput(event.queueClosedAt),
     });
     setBeatUploadLabel("");
     setBeatFile(null);
@@ -241,6 +316,7 @@ export default function HostPage() {
           challengeTitle: eventDraft.challengeTitle,
           challengeDescription: eventDraft.challengeDescription,
           challengeAudioUrl,
+          eventStartAt: easternInputToIso(eventDraft.eventStartAtInput),
         }),
       });
       const data = await response.json();
@@ -378,6 +454,17 @@ export default function HostPage() {
               onChange={(event) => setEventDraft((current) => ({ ...current, challengeAudioUrl: event.target.value }))}
             />
           </label>
+          <label>
+            Event start (ET)
+            <input
+              type="datetime-local"
+              value={eventDraft.eventStartAtInput}
+              onChange={(event) => setEventDraft((current) => ({ ...current, eventStartAtInput: event.target.value }))}
+            />
+          </label>
+          <p className="artist-muted">
+            Submission deadline is automatically set to 24 hours after the Eastern start time you choose.
+          </p>
           <button disabled={isBusy} type="submit">
             Save event challenge
           </button>
@@ -389,6 +476,7 @@ export default function HostPage() {
             <span>Phase: {selectedEvent.phase}</span>
             <span>Round: {selectedEvent.currentRound}</span>
             <span>Queue: {selectedEvent.queuedCount}/16</span>
+            <span>Start time (ET): {formatEastern(selectedEvent.queueClosedAt)}</span>
             <span>Submission deadline: {shortTime(selectedEvent.submissionDeadline)}</span>
             <span>Judging deadline: {shortTime(selectedEvent.judgingDeadline)}</span>
             <span>Countdown: {relativeCountdown(selectedEvent.submissionDeadline || selectedEvent.judgingDeadline)}</span>

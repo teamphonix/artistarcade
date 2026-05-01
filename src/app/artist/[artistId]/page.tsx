@@ -30,6 +30,7 @@ type EventSummary = {
   challengeTitle: string;
   phase: string;
   queuedCount: number;
+  queueClosedAt: string | null;
   submissionDeadline: string | null;
   judgingDeadline: string | null;
   winnerArtistId: string | null;
@@ -67,6 +68,18 @@ function shortTime(date: string | null) {
   }
 
   return new Date(date).toLocaleString([], { dateStyle: "short", timeStyle: "short" });
+}
+
+function easternTime(date: string | null) {
+  if (!date) {
+    return "Not set";
+  }
+
+  return new Date(date).toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function relativeCountdown(date: string | null) {
@@ -195,9 +208,14 @@ export default function ArtistDashboardPage() {
             <h1>{artist.name}</h1>
             <p>{artist.email}</p>
           </div>
-          <Link className="artist-room-link" href={`/artist/${artist.id}/event`}>
-            Open event room
-          </Link>
+          <div className="artist-dashboard-links">
+            <Link className="artist-room-link" href={`/artist/${artist.id}/event`}>
+              Open event room
+            </Link>
+            <Link className="artist-room-link secondary" href={`/artist/${artist.id}/results`}>
+              View results
+            </Link>
+          </div>
         </header>
 
         {message ? <p className="artist-entry-message">{message}</p> : null}
@@ -286,12 +304,18 @@ export default function ArtistDashboardPage() {
             <div className="artist-dashboard-event">
               <strong>{currentEvent.title}</strong>
               <span>Challenge: {currentEvent.challengeTitle}</span>
+              <span>Starts (ET): {easternTime(currentEvent.queueClosedAt)}</span>
               <span>Submission deadline: {shortTime(currentEvent.submissionDeadline)}</span>
               <span>Judging deadline: {shortTime(currentEvent.judgingDeadline)}</span>
               <span>Queue count: {currentEvent.queuedCount}/16</span>
-              <Link className="artist-room-link secondary" href={`/artist/${artist.id}/event`}>
-                Enter event room
-              </Link>
+              <div className="artist-dashboard-links">
+                <Link className="artist-room-link secondary" href={`/artist/${artist.id}/event`}>
+                  Enter event room
+                </Link>
+                <Link className="artist-room-link secondary" href={`/artist/${artist.id}/results`}>
+                  Open results
+                </Link>
+              </div>
             </div>
           ) : (
             <p>No active event yet. Join one of the open queues to enter the protocol.</p>

@@ -46,6 +46,7 @@ type EventSummary = {
   challengeAudioUrl: string;
   phase: string;
   currentRound: number;
+  queueClosedAt: string | null;
   submissionDeadline: string | null;
   judgingDeadline: string | null;
   entries: Array<{ artistId: string }>;
@@ -77,6 +78,18 @@ function relativeCountdown(date: string | null) {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return `${hours}h ${rest}m`;
+}
+
+function easternTime(date: string | null) {
+  if (!date) {
+    return "Not set";
+  }
+
+  return new Date(date).toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 export default function ArtistEventRoomPage() {
@@ -251,6 +264,7 @@ export default function ArtistEventRoomPage() {
   const assignmentExpired = assignment?.dueAt ? new Date(assignment.dueAt).getTime() <= currentTime : false;
   const countdownLabel = assignment?.dueAt ? relativeCountdown(assignment.dueAt) : "Awaiting trigger";
   const playbackUnlocked = matchupArtists.length > 0 && matchupArtists.every(({ submission }) => heardFullTrack[submission.id]);
+  const eventStarted = eventRoom?.queueClosedAt ? new Date(eventRoom.queueClosedAt).getTime() <= currentTime : true;
 
   async function handleJudgeSubmission() {
     if (!assignment || !selectedWinnerId || !playbackUnlocked) {
@@ -346,9 +360,14 @@ export default function ArtistEventRoomPage() {
             <h1>{eventRoom?.title || "No active event"}</h1>
             <p>{artist.name}</p>
           </div>
-          <Link className="artist-room-link" href={`/artist/${artist.id}`}>
-            Back to dashboard
-          </Link>
+          <div className="artist-dashboard-links">
+            <Link className="artist-room-link" href={`/artist/${artist.id}`}>
+              Back to dashboard
+            </Link>
+            <Link className="artist-room-link secondary" href={`/artist/${artist.id}/results`}>
+              View results
+            </Link>
+          </div>
         </header>
 
         {message ? <p className="artist-entry-message">{message}</p> : null}
@@ -367,8 +386,11 @@ export default function ArtistEventRoomPage() {
 
               <article className="artist-room-panel">
                 <h2>Clock</h2>
+                <span>Event start (ET)</span>
+                <strong>{easternTime(eventRoom.queueClosedAt)}</strong>
+                <em>Challenge starts {relativeCountdown(eventRoom.queueClosedAt)}</em>
                 <span>Submission window</span>
-                <strong>{relativeCountdown(eventRoom.submissionDeadline)}</strong>
+                <strong>{eventStarted ? relativeCountdown(eventRoom.submissionDeadline) : "Waiting for start"}</strong>
                 <em>Judging window {relativeCountdown(eventRoom.judgingDeadline)}</em>
               </article>
             </section>
@@ -397,10 +419,16 @@ export default function ArtistEventRoomPage() {
                   onChange={(event) => setDurationSeconds(Number(event.target.value))}
                 />
               </label>
-              <button disabled={isBusy || eventRoom.phase === "judging" || eventRoom.phase === "complete"} type="submit">
+              <button disabled={isBusy || !eventStarted || eventRoom.phase === "judging" || eventRoom.phase === "complete"} type="submit">
                 Upload submission
               </button>
-              <p>{submission ? `Current submission: ${submission.title}` : "No file submitted for this round yet."}</p>
+              <p>
+                {submission
+                  ? `Current submission: ${submission.title}`
+                  : eventStarted
+                    ? "No file submitted for this round yet."
+                    : "Submission stays locked until the Eastern start time is reached."}
+              </p>
             </form>
 
             <section className="artist-room-grid">
