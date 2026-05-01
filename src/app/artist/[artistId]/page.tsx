@@ -25,6 +25,7 @@ type Entry = {
 type EventSummary = {
   id: string;
   title: string;
+  eventType: string;
   desiredPrizeCents: number;
   entryFeeCents: number;
   challengeTitle: string;
@@ -109,7 +110,6 @@ export default function ArtistDashboardPage() {
   const [message, setMessage] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [depositAmount, setDepositAmount] = useState(100);
-  const [selectedEventId, setSelectedEventId] = useState("");
 
   async function loadProtocol() {
     const response = await fetch("/api/pilot", { cache: "no-store" });
@@ -120,7 +120,6 @@ export default function ArtistDashboardPage() {
     }
 
     setPayload(data);
-    setSelectedEventId((current) => current || data.events[0]?.id || "");
   }
 
   useEffect(() => {
@@ -271,31 +270,20 @@ export default function ArtistDashboardPage() {
             </button>
           </form>
 
-          <form
-            className="artist-dashboard-panel"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void postProtocol("joinEvent", {
-                artistId: artist.id,
-                eventId: selectedEventId,
-              });
-            }}
-          >
-            <h2>Join event</h2>
-            <label>
-              Available event
-              <select value={selectedEventId} onChange={(event) => setSelectedEventId(event.target.value)}>
-                {availableEvents.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.title} - {event.queuedCount}/16
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button disabled={isBusy || !!currentEntry || availableEvents.length === 0} type="submit">
-              {currentEntry ? "Already in event" : "Join selected event"}
-            </button>
-          </form>
+          <article className="artist-dashboard-panel">
+            <h2>Events portal</h2>
+            <p>
+              Pick your event type first, then step into the live portal to see the available contests of that type.
+              The beat stays hidden until the queue is full and the event officially opens.
+            </p>
+            <div className="artist-dashboard-event">
+              <span>{availableEvents.length} events open for entry</span>
+              <span>{currentEntry ? "You are already locked into an event." : "Choose your next battle from the portal."}</span>
+            </div>
+            <Link className="artist-room-link" href={`/artist/${artist.id}/events`}>
+              Open events portal
+            </Link>
+          </article>
         </section>
 
         <section className="artist-dashboard-panel artist-dashboard-panel-wide">

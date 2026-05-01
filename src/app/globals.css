@@ -1777,6 +1777,69 @@ button {
   justify-content: flex-end;
 }
 
+.artist-type-grid,
+.artist-event-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.artist-type-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.artist-event-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.artist-type-card,
+.artist-event-tile {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 205, 91, 0.24);
+  color: var(--ink);
+  display: grid;
+  gap: 0.35rem;
+  min-height: 12rem;
+  padding: 1rem;
+  text-align: left;
+}
+
+.artist-type-card span,
+.artist-event-tile span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.artist-type-card strong,
+.artist-event-tile strong {
+  color: var(--gold-bright);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2rem;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.artist-type-card em,
+.artist-event-tile em {
+  color: rgba(246, 230, 188, 0.74);
+  font-size: 0.88rem;
+  font-style: normal;
+}
+
+.artist-type-card.is-active,
+.artist-event-tile.is-active,
+.artist-type-card:hover,
+.artist-event-tile:hover {
+  border-color: rgba(255, 224, 154, 0.8);
+  box-shadow: 0 0 24px rgba(255, 205, 91, 0.14);
+}
+
+.artist-event-popup {
+  margin-top: 1rem;
+}
+
 .artist-result-card {
   background: rgba(8, 7, 5, 0.82);
   border: 1px solid rgba(255, 205, 91, 0.28);
@@ -2014,7 +2077,9 @@ button {
   .artist-dashboard-grid,
   .artist-dashboard-columns,
   .artist-room-grid,
-  .artist-result-matchups {
+  .artist-result-matchups,
+  .artist-type-grid,
+  .artist-event-grid {
     grid-template-columns: 1fr;
   }
 
