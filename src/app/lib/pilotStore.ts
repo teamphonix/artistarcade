@@ -114,7 +114,7 @@ export type WalletLedgerEntry = {
   artistId: string | null;
   eventId: string | null;
   amountCents: number;
-  type: "deposit" | "entry_fee" | "prize" | "company_revenue";
+  type: "deposit" | "withdraw" | "entry_fee" | "prize" | "company_revenue";
   note: string;
   createdAt: string;
 };

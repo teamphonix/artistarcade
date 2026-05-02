@@ -27,6 +27,7 @@ type ProtocolAction =
   | "upsertArtist"
   | "updateEvent"
   | "deposit"
+  | "withdraw"
   | "joinEvent"
   | "closeQueue"
   | "submit"
@@ -391,6 +392,98 @@ function createRoundBattles(state: ProtocolState, eventId: string, round: number
   state.battles.push(...createdBattles);
 }
 
+function lockEventQueue(state: ProtocolState, eventId: string) {
+  const event = state.events.find((entry) => entry.id === eventId);
+  const entries = state.entries.filter((entry) => entry.eventId === eventId).sort((a, b) => a.seed - b.seed);
+
+  if (!event || event.phase !== "queue" || entries.length !== ARTISTS_PER_EVENT) {
+    return false;
+  }
+
+  event.phase = "submission";
+  const scheduledStart = event.queueClosedAt ? new Date(event.queueClosedAt) : new Date();
+  event.queueClosedAt = scheduledStart.toISOString();
+  event.submissionDeadline = event.submissionDeadline || addHours(scheduledStart, SUBMISSION_WINDOW_HOURS);
+  entries.forEach((entry) => {
+    entry.status = "active";
+    const artist = state.artists.find((savedArtist) => savedArtist.id === entry.artistId);
+    if (artist) {
+      artist.status = "queued";
+    }
+  });
+  createRoundBattles(
+    state,
+    event.id,
+    1,
+    entries.map((entry) => entry.artistId),
+  );
+
+  return true;
+}
+
+function openJudgingIfReady(state: ProtocolState, eventId: string) {
+  const event = state.events.find((entry) => entry.id === eventId);
+  if (!event || event.phase !== "submission") {
+    return false;
+  }
+
+  const activeRoundArtists = state.battles
+    .filter((battle) => battle.eventId === eventId && battle.round === event.currentRound)
+    .flatMap((battle) => [battle.artistAId, battle.artistBId]);
+
+  if (activeRoundArtists.length === 0) {
+    return false;
+  }
+
+  const allRoundSubmissionsReady = activeRoundArtists.every((roundArtistId) =>
+    state.submissions.some(
+      (savedSubmission) =>
+        savedSubmission.eventId === eventId &&
+        savedSubmission.artistId === roundArtistId &&
+        savedSubmission.round === event.currentRound,
+    ),
+  );
+
+  if (!allRoundSubmissionsReady) {
+    return false;
+  }
+
+  event.phase = "judging";
+  event.judgingDeadline = addMinutes(new Date(), JUDGING_WINDOW_MINUTES);
+  distributeJudgingWave(state, eventId);
+  return true;
+}
+
+function autoAdvanceProtocol(state: ProtocolState) {
+  let changed = false;
+
+  state.events.forEach((event) => {
+    if (lockEventQueue(state, event.id)) {
+      changed = true;
+    }
+
+    if (openJudgingIfReady(state, event.id)) {
+      changed = true;
+    }
+  });
+
+  if (resolveExpiredAssignments(state)) {
+    changed = true;
+  }
+
+  state.events.forEach((event) => {
+    const beforePhase = event.phase;
+    const beforeRound = event.currentRound;
+    const beforeWinner = event.winnerArtistId;
+    tryAdvanceEvent(state, event.id);
+    if (event.phase !== beforePhase || event.currentRound !== beforeRound || event.winnerArtistId !== beforeWinner) {
+      changed = true;
+    }
+  });
+
+  return changed;
+}
+
 async function readSupabaseState() {
   const supabase = getSupabaseAdmin();
   if (!supabase) {
@@ -710,7 +803,7 @@ async function persistState(state: ProtocolState) {
 
 async function readPayload() {
   const state = await loadState();
-  const changed = resolveExpiredAssignments(state);
+  const changed = autoAdvanceProtocol(state);
   if (changed) {
     await persistState(state);
   }
@@ -744,7 +837,7 @@ export async function POST(request: Request) {
   }
 
   const state = await loadState();
-  resolveExpiredAssignments(state);
+  autoAdvanceProtocol(state);
 
   try {
     if (action === "upsertArtist") {
@@ -804,6 +897,31 @@ export async function POST(request: Request) {
         amountCents,
         type: "deposit",
         note: "Wallet deposit",
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    if (action === "withdraw") {
+      const artistId = String(body?.artistId || "");
+      const amountCents = Math.max(0, Math.round(Number(body?.amountCents || 0)));
+      const artist = state.artists.find((entry) => entry.id === artistId);
+
+      if (!artist || amountCents < 100) {
+        return NextResponse.json({ error: "Artist and withdrawal amount are required." }, { status: 400 });
+      }
+
+      if (artist.walletCents < amountCents) {
+        return NextResponse.json({ error: "Wallet balance is too low for that withdrawal." }, { status: 409 });
+      }
+
+      artist.walletCents -= amountCents;
+      state.walletLedger.push({
+        id: makeId(),
+        artistId: artist.id,
+        eventId: null,
+        amountCents: -amountCents,
+        type: "withdraw",
+        note: "Wallet withdrawal",
         createdAt: new Date().toISOString(),
       });
     }
@@ -888,34 +1006,15 @@ export async function POST(request: Request) {
         note: `Entry fee for ${event.title}`,
         createdAt: new Date().toISOString(),
       });
+
+      lockEventQueue(state, eventId);
     }
 
     if (action === "closeQueue") {
       const eventId = String(body?.eventId || "");
-      const event = state.events.find((entry) => entry.id === eventId);
-      const entries = state.entries.filter((entry) => entry.eventId === eventId).sort((a, b) => a.seed - b.seed);
-
-      if (!event) {
-        return NextResponse.json({ error: "Event is required." }, { status: 400 });
-      }
-
-      if (entries.length !== ARTISTS_PER_EVENT) {
+      if (!lockEventQueue(state, eventId)) {
         return NextResponse.json({ error: "Queue needs exactly 16 artists before it closes." }, { status: 409 });
       }
-
-      event.phase = "submission";
-      const scheduledStart = event.queueClosedAt ? new Date(event.queueClosedAt) : new Date();
-      event.queueClosedAt = scheduledStart.toISOString();
-      event.submissionDeadline = event.submissionDeadline || addHours(scheduledStart, SUBMISSION_WINDOW_HOURS);
-      entries.forEach((entry) => {
-        entry.status = "active";
-      });
-      createRoundBattles(
-        state,
-        event.id,
-        1,
-        entries.map((entry) => entry.artistId),
-      );
     }
 
     if (action === "submit") {
@@ -957,22 +1056,7 @@ export async function POST(request: Request) {
         artist.status = "submitted";
       }
 
-      const activeRoundArtists = state.battles
-        .filter((battle) => battle.eventId === eventId && battle.round === event.currentRound)
-        .flatMap((battle) => [battle.artistAId, battle.artistBId]);
-      const allRoundSubmissionsReady = activeRoundArtists.every((roundArtistId) =>
-        state.submissions.some(
-          (savedSubmission) =>
-            savedSubmission.eventId === eventId &&
-            savedSubmission.artistId === roundArtistId &&
-            savedSubmission.round === event.currentRound,
-        ),
-      );
-
-      if (allRoundSubmissionsReady) {
-        event.phase = "judging";
-        event.judgingDeadline = addHours(new Date(), 24);
-      }
+      openJudgingIfReady(state, eventId);
     }
 
     if (action === "generateJudgeAssignments") {

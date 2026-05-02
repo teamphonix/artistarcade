@@ -3687,3 +3687,398 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+/* Clean beta protocol interface */
+.protocol-page,
+.protocol-loading-page,
+.artist-entry-page,
+.artist-dashboard-page,
+.artist-room-page,
+.pilot-page {
+  background: #0b0d10;
+  color: #f5f1e8;
+}
+
+.protocol-page {
+  min-height: 100svh;
+  padding: clamp(1rem, 2.6vw, 2rem);
+}
+
+.protocol-topbar,
+.protocol-hero,
+.protocol-section {
+  margin: 0 auto;
+  max-width: 76rem;
+}
+
+.protocol-topbar {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: clamp(2rem, 6vw, 5rem);
+}
+
+.protocol-mark,
+.protocol-topbar nav {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.protocol-mark {
+  text-decoration: none;
+}
+
+.protocol-mark span,
+.protocol-mark-symbol {
+  align-items: center;
+  background: #f0c96a;
+  border-radius: 0.45rem;
+  color: #111318;
+  display: inline-flex;
+  font-weight: 950;
+  height: 2.4rem;
+  justify-content: center;
+  letter-spacing: 0;
+  width: 2.4rem;
+}
+
+.protocol-mark strong {
+  color: #f5f1e8;
+  font-size: 0.95rem;
+}
+
+.protocol-topbar nav a {
+  color: #aeb6c2;
+  font-size: 0.86rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.protocol-hero {
+  align-items: start;
+  display: grid;
+  gap: clamp(1rem, 4vw, 3rem);
+  grid-template-columns: minmax(0, 1.15fr) minmax(19rem, 0.85fr);
+}
+
+.protocol-kicker {
+  color: #f0c96a;
+  display: inline-block;
+  font-size: 0.76rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.protocol-copy h1,
+.protocol-section-head h2,
+.protocol-entry-card h2 {
+  color: #f8f3e6;
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+  letter-spacing: 0;
+  line-height: 1;
+  margin: 0.45rem 0 1rem;
+  text-transform: none;
+}
+
+.protocol-copy h1 {
+  font-size: clamp(2.5rem, 6.5vw, 5.6rem);
+}
+
+.protocol-section-head h2 {
+  font-size: clamp(1.8rem, 3.8vw, 3.2rem);
+}
+
+.protocol-entry-card h2 {
+  font-size: 1.45rem;
+}
+
+.protocol-copy p,
+.protocol-entry-card p,
+.protocol-step-grid p {
+  color: #aeb6c2;
+  line-height: 1.65;
+}
+
+.protocol-copy p {
+  font-size: 1.06rem;
+  max-width: 42rem;
+}
+
+.protocol-entry-card,
+.protocol-step-grid article,
+.artist-entry-panel,
+.artist-dashboard-header,
+.artist-room-header,
+.artist-dashboard-card,
+.artist-dashboard-panel,
+.artist-room-panel,
+.artist-result-card,
+.pilot-hero,
+.pilot-panel,
+.pilot-metrics article {
+  background: #151922;
+  border: 1px solid #252b36;
+  border-radius: 0.9rem;
+  box-shadow: none;
+}
+
+.protocol-entry-card {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+
+.protocol-entry-card label,
+.artist-entry-form label,
+.artist-dashboard-panel label,
+.artist-room-panel label,
+.pilot-panel label {
+  color: #d8d1c0;
+  display: grid;
+  font-size: 0.8rem;
+  font-weight: 800;
+  gap: 0.4rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.protocol-entry-card input,
+.artist-entry-form input,
+.artist-dashboard-panel input,
+.artist-dashboard-panel select,
+.artist-room-panel input,
+.pilot-panel input,
+.pilot-panel select {
+  background: #0d1117;
+  border: 1px solid #303846;
+  border-radius: 0.6rem;
+  color: #f5f1e8;
+  min-height: 2.8rem;
+  padding: 0 0.8rem;
+  width: 100%;
+}
+
+.protocol-entry-card input:focus,
+.artist-entry-form input:focus,
+.artist-dashboard-panel input:focus,
+.artist-dashboard-panel select:focus,
+.artist-room-panel input:focus,
+.pilot-panel input:focus,
+.pilot-panel select:focus {
+  border-color: #f0c96a;
+  box-shadow: 0 0 0 3px rgba(240, 201, 106, 0.12);
+  outline: none;
+}
+
+.protocol-entry-card button,
+.artist-entry-form button,
+.artist-dashboard-panel button,
+.artist-room-panel button,
+.pilot-panel button,
+.artist-room-link {
+  align-items: center;
+  background: #f0c96a;
+  border: 1px solid #f0c96a;
+  border-radius: 0.6rem;
+  color: #101318;
+  display: inline-flex;
+  font-weight: 900;
+  justify-content: center;
+  min-height: 2.8rem;
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+  text-shadow: none;
+  text-transform: none;
+}
+
+.protocol-entry-card button:disabled,
+.artist-entry-form button:disabled,
+.artist-dashboard-panel button:disabled,
+.artist-room-panel button:disabled,
+.pilot-panel button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.65);
+  opacity: 0.58;
+}
+
+.artist-room-link.secondary,
+button.artist-room-link.secondary {
+  background: #202631;
+  border-color: #333b49;
+  color: #d8d1c0;
+}
+
+.protocol-message,
+.artist-entry-message,
+.pilot-message {
+  background: rgba(240, 201, 106, 0.1);
+  border: 1px solid rgba(240, 201, 106, 0.24);
+  border-radius: 0.7rem;
+  color: #f3d889;
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+}
+
+.protocol-section {
+  margin-top: clamp(2rem, 6vw, 5rem);
+}
+
+.protocol-section-head {
+  margin-bottom: 1rem;
+}
+
+.protocol-step-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.protocol-step-grid article {
+  padding: 1rem;
+}
+
+.protocol-step-grid span,
+.artist-dashboard-card span,
+.artist-dashboard-panel h2,
+.artist-room-panel h2,
+.pilot-panel h2,
+.pilot-metrics span {
+  color: #8f98a6;
+  font-size: 0.76rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.protocol-step-grid strong,
+.artist-dashboard-card strong,
+.artist-dashboard-panel strong,
+.artist-room-panel strong,
+.artist-dashboard-event strong,
+.pilot-metrics strong {
+  color: #f8f3e6;
+}
+
+.artist-entry-panel,
+.artist-dashboard-shell,
+.artist-room-shell,
+.pilot-hero,
+.pilot-metrics,
+.pilot-tabs,
+.pilot-columns {
+  max-width: 76rem;
+}
+
+.artist-dashboard-header,
+.artist-room-header,
+.pilot-hero {
+  background: #151922;
+  grid-template-columns: 1fr auto;
+}
+
+.artist-entry-panel h1,
+.artist-dashboard-header h1,
+.artist-room-header h1,
+.pilot-hero h1 {
+  color: #f8f3e6;
+  font-size: clamp(2rem, 5vw, 4rem);
+}
+
+.artist-type-card,
+.artist-event-tile,
+.judge-playback-card,
+.artist-result-track,
+.artist-empty-state,
+.protocol-summary span,
+.pilot-row {
+  background: #10141b;
+  border: 1px solid #252b36;
+  border-radius: 0.75rem;
+  color: #f5f1e8;
+}
+
+.artist-type-card strong,
+.artist-event-tile strong,
+.judge-playback-card strong {
+  color: #f8f3e6;
+}
+
+.protocol-loading-page {
+  align-items: center;
+  display: grid;
+  min-height: 100svh;
+  padding: 1rem;
+}
+
+.protocol-loading-card {
+  background: #151922;
+  border: 1px solid #252b36;
+  border-radius: 0.9rem;
+  display: grid;
+  gap: 0.8rem;
+  margin: 0 auto;
+  justify-self: center;
+  max-width: min(22rem, calc(100vw - 2rem));
+  overflow: hidden;
+  padding: 1.25rem;
+  width: min(100%, 22rem);
+}
+
+.protocol-loading-card h1 {
+  font-size: 1.45rem;
+  margin: 0;
+}
+
+.protocol-loading-card p {
+  color: #aeb6c2;
+  line-height: 1.55;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.protocol-loading-bar {
+  background: #0d1117;
+  border-radius: 999px;
+  height: 0.65rem;
+  overflow: hidden;
+}
+
+.protocol-loading-bar span {
+  animation: loadingBar 2.3s ease-in-out infinite;
+  background: #f0c96a;
+  display: block;
+  height: 100%;
+  width: 62%;
+}
+
+@media (max-width: 900px) {
+  .protocol-topbar,
+  .protocol-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .protocol-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .protocol-step-grid,
+  .artist-dashboard-grid,
+  .artist-dashboard-columns,
+  .artist-room-grid,
+  .pilot-metrics,
+  .pilot-columns,
+  .artist-type-grid,
+  .artist-event-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .artist-dashboard-header,
+  .artist-room-header,
+  .pilot-hero {
+    grid-template-columns: 1fr;
+  }
+}

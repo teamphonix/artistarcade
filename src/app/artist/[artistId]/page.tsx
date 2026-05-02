@@ -110,6 +110,7 @@ export default function ArtistDashboardPage() {
   const [message, setMessage] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [depositAmount, setDepositAmount] = useState(100);
+  const [withdrawAmount, setWithdrawAmount] = useState(100);
 
   async function loadProtocol() {
     const response = await fetch("/api/pilot", { cache: "no-store" });
@@ -203,11 +204,14 @@ export default function ArtistDashboardPage() {
       <section className="artist-dashboard-shell">
         <header className="artist-dashboard-header">
           <div>
-            <span className="artist-entry-kicker">Artist Dashboard</span>
+            <span className="artist-entry-kicker">Artist profile</span>
             <h1>{artist.name}</h1>
             <p>{artist.email}</p>
           </div>
           <div className="artist-dashboard-links">
+            <Link className="artist-room-link" href={`/artist/${artist.id}/events`}>
+              Open arena
+            </Link>
             <Link className="artist-room-link" href={`/artist/${artist.id}/event`}>
               Open event room
             </Link>
@@ -254,9 +258,9 @@ export default function ArtistDashboardPage() {
               });
             }}
           >
-            <h2>Add funds</h2>
+            <h2>Wallet</h2>
             <label>
-              Amount in cents
+              Add funds in cents
               <input
                 min="100"
                 step="100"
@@ -270,19 +274,51 @@ export default function ArtistDashboardPage() {
             </button>
           </form>
 
+          <form
+            className="artist-dashboard-panel"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void postProtocol("withdraw", {
+                artistId: artist.id,
+                amountCents: withdrawAmount,
+              });
+            }}
+          >
+            <h2>Withdraw</h2>
+            <p>Beta ledger withdrawal. This reduces available wallet balance in the protocol state.</p>
+            <label>
+              Withdraw amount in cents
+              <input
+                min="100"
+                step="100"
+                type="number"
+                value={withdrawAmount}
+                onChange={(event) => setWithdrawAmount(Number(event.target.value))}
+              />
+            </label>
+            <button disabled={isBusy || artist.walletCents < withdrawAmount} type="submit">
+              Withdraw funds
+            </button>
+          </form>
+
           <article className="artist-dashboard-panel">
-            <h2>Events portal</h2>
+            <h2>Arena</h2>
             <p>
-              Pick your event type first, then step into the live portal to see the available contests of that type.
-              The beat stays hidden until the queue is full and the event officially opens.
+              View available beta events, join one queue, and stand by until the system opens submissions. Create event
+              is visible for the product path, but locked during beta.
             </p>
             <div className="artist-dashboard-event">
               <span>{availableEvents.length} events open for entry</span>
               <span>{currentEntry ? "You are already locked into an event." : "Choose your next battle from the portal."}</span>
             </div>
-            <Link className="artist-room-link" href={`/artist/${artist.id}/events`}>
-              Open events portal
-            </Link>
+            <div className="artist-dashboard-links">
+              <Link className="artist-room-link" href={`/artist/${artist.id}/events`}>
+                Open arena
+              </Link>
+              <button className="artist-room-link secondary" disabled type="button">
+                Create event - beta locked
+              </button>
+            </div>
           </article>
         </section>
 

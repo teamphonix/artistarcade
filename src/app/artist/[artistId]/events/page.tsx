@@ -155,8 +155,8 @@ export default function ArtistEventsPortalPage() {
       <section className="artist-dashboard-shell">
         <header className="artist-room-header">
           <div>
-            <span className="artist-entry-kicker">Events Portal</span>
-            <h1>Choose Your Arena</h1>
+            <span className="artist-entry-kicker">Arena</span>
+            <h1>Available events</h1>
             <p>{artist.name}</p>
           </div>
           <div className="artist-dashboard-links">
@@ -172,7 +172,7 @@ export default function ArtistEventsPortalPage() {
         {message ? <p className="artist-entry-message">{message}</p> : null}
 
         <section className="artist-dashboard-panel artist-dashboard-panel-wide">
-          <h2>Event types</h2>
+          <h2>Event categories</h2>
           <div className="artist-type-grid">
             {eventTypes.map((type) => (
               <button
@@ -184,9 +184,9 @@ export default function ArtistEventsPortalPage() {
                 }}
                 type="button"
               >
-                <span>Portal</span>
+                <span>Category</span>
                 <strong>{type}</strong>
-                <em>{type === "rap" ? "Lyrical battle events" : "Live event type"}</em>
+                <em>{type === "rap" ? "Rap battle protocol" : "Beta event type"}</em>
               </button>
             ))}
           </div>
@@ -195,7 +195,8 @@ export default function ArtistEventsPortalPage() {
         <section className="artist-dashboard-panel artist-dashboard-panel-wide">
           <h2>Available events</h2>
           <p>
-            Pick the prize tile to inspect the event. The beat stays hidden until the queue fills and the event officially opens.
+            Pick an event to inspect the queue. When the 16th artist joins, the system locks the queue automatically,
+            alerts artists in-app, and opens the submission window from the scheduled start time.
           </p>
           <div className="artist-event-grid">
             {visibleEvents.length > 0 ? (
@@ -209,7 +210,9 @@ export default function ArtistEventsPortalPage() {
                 >
                   <span>Prize</span>
                   <strong>{money(event.desiredPrizeCents)}</strong>
-                  <em>{event.title}</em>
+                  <em>
+                    {event.title} | {event.queuedCount}/16 queued
+                  </em>
                 </button>
               ))
             ) : (
@@ -243,6 +246,17 @@ export default function ArtistEventsPortalPage() {
             </button>
           </section>
         ) : null}
+
+        <section className="artist-dashboard-panel artist-dashboard-panel-wide">
+          <h2>Create event</h2>
+          <p>
+            Artist-created events are part of the full protocol, but this control is locked during beta while queue,
+            wallet, submission, judging, and results flow are being validated.
+          </p>
+          <button className="artist-room-link secondary" disabled type="button">
+            Create event - beta locked
+          </button>
+        </section>
       </section>
     </main>
   );

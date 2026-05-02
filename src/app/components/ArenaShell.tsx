@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { ReactNode } from "react";
 
 type ArenaShellProps = {
@@ -26,13 +25,8 @@ export function ArenaShell({ children, className = "" }: ArenaShellProps) {
 export function ArtistArcadeCrest({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`aa-crest aa-brand-crest ${compact ? "is-compact" : ""}`} aria-label="The Artist Arcade">
-      <Image
-        alt="The Artist Arcade"
-        height={1024}
-        priority={!compact}
-        src="/brand/artist-arcade-primary.jpg"
-        width={1024}
-      />
+      <span>AA</span>
+      <strong>Artist Arcade</strong>
     </div>
   );
 }
