@@ -61,6 +61,7 @@ export default function Home() {
         </Link>
         <nav aria-label="Protocol navigation">
           <Link href="/artist">Sign in</Link>
+          <Link href="/test-run">Test run</Link>
           <Link href="/host">Host beta</Link>
           <Link href="/arena">Protocol admin</Link>
         </nav>

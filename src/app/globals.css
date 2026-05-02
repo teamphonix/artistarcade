@@ -4082,3 +4082,167 @@ button.artist-room-link.secondary {
     grid-template-columns: 1fr;
   }
 }
+
+.test-run-page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.test-hero,
+.test-summary-grid,
+.test-section {
+  margin: 0 auto;
+  max-width: 76rem;
+  width: 100%;
+}
+
+.test-hero {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
+}
+
+.test-hero h1 {
+  color: #f8f3e6;
+  font-size: clamp(2.2rem, 5.8vw, 5rem);
+  letter-spacing: 0;
+  line-height: 1;
+  margin: 0.45rem 0 1rem;
+}
+
+.test-hero p,
+.test-battle-list p,
+.test-winner-grid p,
+.test-record-grid p {
+  color: #aeb6c2;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.test-control-card,
+.test-summary-grid article,
+.test-winner-grid article,
+.test-battle-list article,
+.test-record-grid article {
+  background: #151922;
+  border: 1px solid #252b36;
+  border-radius: 0.9rem;
+}
+
+.test-control-card {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+}
+
+.test-control-card strong {
+  color: #f8f3e6;
+  font-size: 1.8rem;
+}
+
+.test-control-card button {
+  background: #f0c96a;
+  border: 1px solid #f0c96a;
+  border-radius: 0.6rem;
+  color: #101318;
+  font-weight: 900;
+  min-height: 2.8rem;
+  padding: 0.75rem 1rem;
+}
+
+.test-control-card button + button {
+  background: #202631;
+  border-color: #333b49;
+  color: #d8d1c0;
+}
+
+.test-summary-grid,
+.test-winner-grid,
+.test-record-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.test-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.test-winner-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.test-record-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.test-summary-grid article,
+.test-winner-grid article,
+.test-record-grid article {
+  display: grid;
+  gap: 0.45rem;
+  padding: 1rem;
+}
+
+.test-summary-grid span,
+.test-winner-grid span,
+.test-record-grid span,
+.test-battle-list span {
+  color: #8f98a6;
+  font-size: 0.74rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.test-summary-grid strong,
+.test-winner-grid strong,
+.test-record-grid strong,
+.test-battle-list strong {
+  color: #f8f3e6;
+}
+
+.test-winner-grid em,
+.test-record-grid em,
+.test-battle-list em {
+  color: #d7c48f;
+  font-size: 0.84rem;
+  font-style: normal;
+}
+
+.test-battle-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.test-battle-list article {
+  align-items: center;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(13rem, 0.35fr);
+  padding: 1rem;
+}
+
+.test-battle-list aside {
+  background: #10141b;
+  border: 1px solid #252b36;
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.8rem;
+}
+
+.test-record-grid article.is-winner {
+  border-color: rgba(240, 201, 106, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(240, 201, 106, 0.16);
+}
+
+@media (max-width: 1000px) {
+  .test-hero,
+  .test-summary-grid,
+  .test-winner-grid,
+  .test-record-grid,
+  .test-battle-list article {
+    grid-template-columns: 1fr;
+  }
+}
