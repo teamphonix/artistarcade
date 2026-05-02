@@ -4124,7 +4124,8 @@ button.artist-room-link.secondary {
 .test-summary-grid article,
 .test-winner-grid article,
 .test-battle-list article,
-.test-record-grid article {
+.test-record-grid article,
+.test-bracket-card {
   background: #151922;
   border: 1px solid #252b36;
   border-radius: 0.9rem;
@@ -4237,6 +4238,113 @@ button.artist-room-link.secondary {
   box-shadow: inset 0 0 0 1px rgba(240, 201, 106, 0.16);
 }
 
+.test-bracket-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.test-bracket-card {
+  overflow-x: auto;
+  padding: 1rem;
+}
+
+.test-bracket-card > header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.test-bracket-card header div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.test-bracket-card header span,
+.test-bracket-round h3 {
+  color: #8f98a6;
+  font-size: 0.74rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.test-bracket-card header strong {
+  color: #f8f3e6;
+  font-size: 1.2rem;
+}
+
+.test-bracket-card header em {
+  color: #d7c48f;
+  font-size: 0.84rem;
+  font-style: normal;
+}
+
+.test-bracket-map {
+  align-items: stretch;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 2fr 1fr 0.65fr 0.5fr;
+  min-width: 62rem;
+}
+
+.test-bracket-round {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-rows: auto 1fr;
+}
+
+.test-bracket-round h3 {
+  margin: 0;
+}
+
+.test-bracket-round > div {
+  align-content: space-around;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.test-bracket-match {
+  background: #10141b;
+  border: 1px solid #252b36;
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.3rem;
+  min-height: 4.7rem;
+  padding: 0.7rem;
+  position: relative;
+}
+
+.test-bracket-match::after {
+  background: #303846;
+  content: "";
+  height: 1px;
+  position: absolute;
+  right: -1rem;
+  top: 50%;
+  width: 1rem;
+}
+
+.test-bracket-round:last-child .test-bracket-match::after {
+  content: none;
+}
+
+.test-bracket-match span {
+  color: #aeb6c2;
+  font-size: 0.86rem;
+}
+
+.test-bracket-match span.is-advance {
+  color: #f8f3e6;
+  font-weight: 900;
+}
+
+.test-bracket-match strong {
+  color: #f0c96a;
+  font-size: 0.76rem;
+}
+
 @media (max-width: 1000px) {
   .test-hero,
   .test-summary-grid,
@@ -4244,5 +4352,10 @@ button.artist-room-link.secondary {
   .test-record-grid,
   .test-battle-list article {
     grid-template-columns: 1fr;
+  }
+
+  .test-bracket-card > header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

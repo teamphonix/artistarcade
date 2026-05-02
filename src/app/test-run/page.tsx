@@ -74,6 +74,12 @@ const secondNames = [
 ];
 
 const eventTitles = ["Lyrical Onslaught", "Story Mode", "Beat Talk", "Persona Pen"];
+const roundLabels: Record<number, string> = {
+  1: "Round of 16",
+  2: "Quarterfinals",
+  3: "Semifinals",
+  4: "Final",
+};
 
 function money(cents: number) {
   return `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -243,6 +249,49 @@ export default function TestRunPage() {
                 Record {event.winner.wins}-{event.winner.losses} | Prize {money(event.prizeCents)} | Pot{" "}
                 {money(event.potCents)}
               </em>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="test-section">
+        <div className="protocol-section-head">
+          <span className="protocol-kicker">Tournament maps</span>
+          <h2>Each arena path from 16 artists to the winner.</h2>
+        </div>
+        <div className="test-bracket-stack">
+          {simulation.events.map((event) => (
+            <article className="test-bracket-card" key={event.id}>
+              <header>
+                <div>
+                  <span>{event.title}</span>
+                  <strong>{event.winner.name} wins</strong>
+                </div>
+                <em>{event.battles.length} battles resolved</em>
+              </header>
+              <div className="test-bracket-map" aria-label={`${event.title} bracket`}>
+                {[1, 2, 3, 4].map((round) => {
+                  const roundBattles = event.battles.filter((battle) => battle.round === round);
+                  return (
+                    <section className="test-bracket-round" key={`${event.id}-${round}`}>
+                      <h3>{roundLabels[round]}</h3>
+                      <div>
+                        {roundBattles.map((battle) => (
+                          <article className="test-bracket-match" key={battle.id}>
+                            <span className={battle.winner.id === battle.artistA.id ? "is-advance" : ""}>
+                              {battle.artistA.name}
+                            </span>
+                            <span className={battle.winner.id === battle.artistB.id ? "is-advance" : ""}>
+                              {battle.artistB.name}
+                            </span>
+                            <strong>Winner: {battle.winner.name}</strong>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
             </article>
           ))}
         </div>
