@@ -20,6 +20,7 @@ type Battle = {
   round: number;
   artistA: Artist;
   artistB: Artist;
+  judge: Artist;
   winner: Artist;
   loser: Artist;
   reason: string;
@@ -109,7 +110,19 @@ function buildArtists(): Artist[] {
   });
 }
 
-function simulateEvent(eventId: string, title: string, artists: Artist[], random: () => number): SimulatedEvent {
+function pickJudge(allArtists: Artist[], battleEventId: string, battleIndex: number, random: () => number) {
+  const eligibleJudges = allArtists.filter((artist) => artist.eventId !== battleEventId);
+  const startIndex = Math.floor(random() * eligibleJudges.length);
+  return eligibleJudges[(startIndex + battleIndex) % eligibleJudges.length];
+}
+
+function simulateEvent(
+  eventId: string,
+  title: string,
+  artists: Artist[],
+  allArtists: Artist[],
+  random: () => number,
+): SimulatedEvent {
   let round = 1;
   let contenders = [...artists];
   const battles: Battle[] = [];
@@ -121,6 +134,8 @@ function simulateEvent(eventId: string, title: string, artists: Artist[], random
       const artistB = contenders[index + 1];
       const winner = random() >= 0.5 ? artistA : artistB;
       const loser = winner.id === artistA.id ? artistB : artistA;
+      const battleNumber = battles.length + 1;
+      const judge = pickJudge(allArtists, eventId, battleNumber, random);
 
       winner.wins += 1;
       loser.losses += 1;
@@ -131,9 +146,10 @@ function simulateEvent(eventId: string, title: string, artists: Artist[], random
         round,
         artistA,
         artistB,
+        judge,
         winner,
         loser,
-        reason: "No vote submitted. Protocol random selection resolved the battle.",
+        reason: `${judge.name} was assigned from ${judge.eventTitle} and voted for ${winner.name}.`,
       });
       nextRound.push(winner);
     }
@@ -164,6 +180,7 @@ function runSimulation(seed: number) {
       eventId,
       title,
       artists.filter((artist) => artist.eventId === eventId),
+      artists,
       random,
     );
   });
@@ -200,7 +217,7 @@ export default function TestRunPage() {
           <h1>64 artists. Four arenas. Instant random resolution.</h1>
           <p>
             This test run bypasses uploads and waiting. Every artist enters with $1, every placeholder submission is named
-            after the artist, no votes are submitted, and the protocol resolves each battle by random selection.
+            after the artist, a cross-event artist is assigned as judge, and each vote is recorded in the ledger.
           </p>
         </div>
         <aside className="test-control-card">
@@ -285,6 +302,9 @@ export default function TestRunPage() {
                               {battle.artistB.name}
                             </span>
                             <strong>Winner: {battle.winner.name}</strong>
+                            <em>
+                              Judge: {battle.judge.name} voted {battle.winner.name}
+                            </em>
                           </article>
                         ))}
                       </div>
@@ -314,6 +334,13 @@ export default function TestRunPage() {
                 </strong>
                 <p>{battle.reason}</p>
               </div>
+              <aside>
+                <span>Judge</span>
+                <strong>{battle.judge.name}</strong>
+                <em>
+                  Voted {battle.winner.name} over {battle.loser.name}
+                </em>
+              </aside>
               <aside>
                 <span>Winner</span>
                 <strong>{battle.winner.name}</strong>
