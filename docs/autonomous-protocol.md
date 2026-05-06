@@ -23,6 +23,25 @@ The tick route calls `/api/pilot`, which advances protocol state before returnin
 - Expired judging assignments auto-resolve.
 - Completed battles advance the event to the next round or final winner.
 
+## Audit Trail
+
+The protocol now records durable audit events in `protocol_audit_log` and exposes the latest entries as `auditLog` from `/api/pilot`.
+
+Tracked actions include:
+
+- artist registration
+- wallet deposit and withdrawal
+- event setup changes
+- artist joining an event
+- queue auto-lock
+- submission received
+- judging opened
+- judge assignment
+- vote recorded
+- expired judging auto-resolution
+- round advancement
+- event completion and prize ledgering
+
 ## Still Needed
 
 - Real payment rails for wallet deposit and withdrawal.

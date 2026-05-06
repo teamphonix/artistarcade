@@ -119,6 +119,16 @@ export type WalletLedgerEntry = {
   createdAt: string;
 };
 
+export type ProtocolAuditEntry = {
+  id: string;
+  eventId: string | null;
+  artistId: string | null;
+  action: string;
+  note: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
 export type ProtocolState = {
   settings: {
     artistsPerEvent: number;
@@ -137,6 +147,7 @@ export type ProtocolState = {
   assignments: ProtocolAssignment[];
   judgments: ProtocolJudgment[];
   walletLedger: WalletLedgerEntry[];
+  auditLog: ProtocolAuditEntry[];
 };
 
 const dataDirectory = process.env.VERCEL ? "/tmp/artistarcade-data" : path.join(process.cwd(), "data");
@@ -208,6 +219,7 @@ export const seedPilotState: ProtocolState = {
   assignments: [],
   judgments: [],
   walletLedger: [],
+  auditLog: [],
 };
 
 export async function readPilotState() {

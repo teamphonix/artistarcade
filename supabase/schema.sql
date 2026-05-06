@@ -105,8 +105,25 @@ create table if not exists protocol_wallet_ledger (
   artist_id uuid references protocol_artists(id),
   event_id uuid references protocol_events(id),
   amount_cents integer not null,
-  type text not null check (type in ('deposit', 'entry_fee', 'prize', 'company_revenue')),
+  type text not null check (type in ('deposit', 'withdraw', 'entry_fee', 'prize', 'company_revenue')),
   note text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table protocol_wallet_ledger
+  drop constraint if exists protocol_wallet_ledger_type_check;
+
+alter table protocol_wallet_ledger
+  add constraint protocol_wallet_ledger_type_check
+  check (type in ('deposit', 'withdraw', 'entry_fee', 'prize', 'company_revenue'));
+
+create table if not exists protocol_audit_log (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid references protocol_events(id) on delete set null,
+  artist_id uuid references protocol_artists(id) on delete set null,
+  action text not null,
+  note text not null,
+  metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
 
@@ -116,3 +133,6 @@ create index if not exists protocol_battles_event_round_idx on protocol_battles(
 create index if not exists protocol_assignments_battle_idx on protocol_assignments(battle_id);
 create index if not exists protocol_assignments_judge_idx on protocol_assignments(judge_artist_id);
 create index if not exists protocol_judgments_battle_idx on protocol_judgments(battle_id);
+create index if not exists protocol_wallet_ledger_artist_idx on protocol_wallet_ledger(artist_id);
+create index if not exists protocol_audit_log_created_idx on protocol_audit_log(created_at desc);
+create index if not exists protocol_audit_log_event_idx on protocol_audit_log(event_id);

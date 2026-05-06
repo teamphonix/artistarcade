@@ -57,6 +57,34 @@ function shuffle<T>(items: T[]) {
   return next;
 }
 
+function ensureAuditLog(state: ProtocolState) {
+  if (!Array.isArray(state.auditLog)) {
+    state.auditLog = [];
+  }
+}
+
+function logProtocolEvent(
+  state: ProtocolState,
+  action: string,
+  note: string,
+  options: {
+    eventId?: string | null;
+    artistId?: string | null;
+    metadata?: Record<string, unknown>;
+  } = {},
+) {
+  ensureAuditLog(state);
+  state.auditLog.push({
+    id: makeId(),
+    eventId: options.eventId || null,
+    artistId: options.artistId || null,
+    action,
+    note,
+    metadata: options.metadata || {},
+    createdAt: new Date().toISOString(),
+  });
+}
+
 function getEventParticipants(state: ProtocolState, eventId: string) {
   return state.entries.filter((entry) => entry.eventId === eventId).map((entry) => entry.artistId);
 }
@@ -171,6 +199,14 @@ function tryAdvanceEvent(state: ProtocolState, eventId: string) {
       note: `Company remainder for ${event.title}`,
       createdAt: new Date().toISOString(),
     });
+    logProtocolEvent(state, "event_complete", `${event.title} completed. Winner: ${winner?.name || winners[0]}.`, {
+      eventId,
+      artistId: winners[0],
+      metadata: {
+        prizeCents: event.desiredPrizeCents,
+        companyRevenueCents: event.companyRevenueCents,
+      },
+    });
     return;
   }
 
@@ -179,6 +215,10 @@ function tryAdvanceEvent(state: ProtocolState, eventId: string) {
   event.submissionDeadline = addHours(new Date(), SUBMISSION_WINDOW_HOURS);
   event.judgingDeadline = null;
   createRoundBattles(state, event.id, event.currentRound, winners);
+  logProtocolEvent(state, "round_advanced", `${event.title} advanced to round ${event.currentRound}.`, {
+    eventId,
+    metadata: { round: event.currentRound, advancingArtistIds: winners },
+  });
 }
 
 function resolveExpiredAssignments(state: ProtocolState) {
@@ -193,6 +233,11 @@ function resolveExpiredAssignments(state: ProtocolState) {
       if (battle) {
         tryAdvanceEvent(state, battle.eventId);
       }
+      logProtocolEvent(state, "judging_expired", `Judging assignment expired and battle was auto-resolved.`, {
+        eventId: battle?.eventId || null,
+        artistId: assignment.judgeArtistId,
+        metadata: { assignmentId: assignment.id, battleId: assignment.battleId },
+      });
       changed = true;
     });
 
@@ -288,6 +333,11 @@ function distributeJudgingWave(state: ProtocolState, eventId: string) {
     judge.status = "judging";
     usedJudges.add(judge.id);
     distributed += 1;
+    logProtocolEvent(state, "judge_assigned", `${judge.name} assigned to judge battle ${battle.slot}.`, {
+      eventId,
+      artistId: judge.id,
+      metadata: { battleId: battle.id, round: battle.round, dueAt: waveDueAt },
+    });
   });
 
   if (distributed > 0) {
@@ -334,6 +384,7 @@ function summarize(state: ProtocolState) {
     assignments: state.assignments,
     judgments: state.judgments,
     walletLedger: state.walletLedger,
+    auditLog: [...(state.auditLog || [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100),
     scoredBattles,
     scoreCategories: SCORE_CATEGORIES,
     totals: {
@@ -417,6 +468,13 @@ function lockEventQueue(state: ProtocolState, eventId: string) {
     1,
     entries.map((entry) => entry.artistId),
   );
+  logProtocolEvent(state, "queue_locked", `${event.title} queue locked at ${entries.length} artists.`, {
+    eventId: event.id,
+    metadata: {
+      submissionDeadline: event.submissionDeadline,
+      artistIds: entries.map((entry) => entry.artistId),
+    },
+  });
 
   return true;
 }
@@ -451,6 +509,13 @@ function openJudgingIfReady(state: ProtocolState, eventId: string) {
   event.phase = "judging";
   event.judgingDeadline = addMinutes(new Date(), JUDGING_WINDOW_MINUTES);
   distributeJudgingWave(state, eventId);
+  logProtocolEvent(state, "judging_opened", `${event.title} judging opened for round ${event.currentRound}.`, {
+    eventId,
+    metadata: {
+      round: event.currentRound,
+      judgingDeadline: event.judgingDeadline,
+    },
+  });
   return true;
 }
 
@@ -499,6 +564,7 @@ async function readSupabaseState() {
     assignmentsResult,
     judgmentsResult,
     walletLedgerResult,
+    auditLogResult,
   ] = await Promise.all([
     supabase.from("protocol_artists").select("*").order("created_at", { ascending: true }),
     supabase.from("protocol_events").select("*").order("queue_opened_at", { ascending: true }),
@@ -508,6 +574,7 @@ async function readSupabaseState() {
     supabase.from("protocol_assignments").select("*").order("assigned_at", { ascending: true }),
     supabase.from("protocol_judgments").select("*").order("created_at", { ascending: true }),
     supabase.from("protocol_wallet_ledger").select("*").order("created_at", { ascending: true }),
+    supabase.from("protocol_audit_log").select("*").order("created_at", { ascending: true }),
   ]);
 
   const error =
@@ -518,7 +585,8 @@ async function readSupabaseState() {
     battlesResult.error ||
     assignmentsResult.error ||
     judgmentsResult.error ||
-    walletLedgerResult.error;
+    walletLedgerResult.error ||
+    auditLogResult.error;
 
   if (error) {
     throw new Error(error.message);
@@ -619,6 +687,15 @@ async function readSupabaseState() {
       note: entry.note,
       createdAt: entry.created_at,
     })),
+    auditLog: (auditLogResult.data || []).map((entry) => ({
+      id: entry.id,
+      eventId: entry.event_id,
+      artistId: entry.artist_id,
+      action: entry.action,
+      note: entry.note,
+      metadata: entry.metadata || {},
+      createdAt: entry.created_at,
+    })),
   };
 
   if (state.artists.length === 0 && state.events.length === 0) {
@@ -644,6 +721,7 @@ async function writeSupabaseState(state: ProtocolState) {
   };
 
   await deleteAll("protocol_judgments", "created_at");
+  await deleteAll("protocol_audit_log", "created_at");
   await deleteAll("protocol_assignments", "assigned_at");
   await deleteAll("protocol_battles", "created_at");
   await deleteAll("protocol_submissions", "submitted_at");
@@ -786,6 +864,19 @@ async function writeSupabaseState(state: ProtocolState) {
       created_at: entry.createdAt,
     })),
   );
+
+  await insert(
+    "protocol_audit_log",
+    (state.auditLog || []).map((entry) => ({
+      id: entry.id,
+      event_id: entry.eventId,
+      artist_id: entry.artistId,
+      action: entry.action,
+      note: entry.note,
+      metadata: entry.metadata,
+      created_at: entry.createdAt,
+    })),
+  );
 }
 
 async function loadState() {
@@ -860,6 +951,9 @@ export async function POST(request: Request) {
           createdAt: new Date().toISOString(),
         };
         state.artists.push(artist);
+        logProtocolEvent(state, "artist_registered", `${artist.name} registered.`, {
+          artistId: artist.id,
+        });
       } else {
         artist.name = name;
       }
@@ -899,6 +993,10 @@ export async function POST(request: Request) {
         note: "Wallet deposit",
         createdAt: new Date().toISOString(),
       });
+      logProtocolEvent(state, "wallet_deposit", `${artist.name} deposited ${amountCents} cents.`, {
+        artistId: artist.id,
+        metadata: { amountCents },
+      });
     }
 
     if (action === "withdraw") {
@@ -923,6 +1021,10 @@ export async function POST(request: Request) {
         type: "withdraw",
         note: "Wallet withdrawal",
         createdAt: new Date().toISOString(),
+      });
+      logProtocolEvent(state, "wallet_withdraw", `${artist.name} withdrew ${amountCents} cents.`, {
+        artistId: artist.id,
+        metadata: { amountCents },
       });
     }
 
@@ -955,6 +1057,10 @@ export async function POST(request: Request) {
       event.challengeAudioUrl = challengeAudioUrl;
       event.queueClosedAt = startDate.toISOString();
       event.submissionDeadline = addHours(startDate, SUBMISSION_WINDOW_HOURS);
+      logProtocolEvent(state, "event_updated", `${event.title} challenge and start time updated.`, {
+        eventId: event.id,
+        metadata: { eventStartAt: event.queueClosedAt, submissionDeadline: event.submissionDeadline },
+      });
     }
 
     if (action === "joinEvent") {
@@ -1006,6 +1112,11 @@ export async function POST(request: Request) {
         note: `Entry fee for ${event.title}`,
         createdAt: new Date().toISOString(),
       });
+      logProtocolEvent(state, "artist_joined_event", `${artist.name} joined ${event.title}.`, {
+        eventId,
+        artistId,
+        metadata: { seed: nextEntry.seed, entryFeeCents: event.entryFeeCents },
+      });
 
       lockEventQueue(state, eventId);
     }
@@ -1055,6 +1166,11 @@ export async function POST(request: Request) {
       if (artist) {
         artist.status = "submitted";
       }
+      logProtocolEvent(state, "submission_received", `${artist?.name || artistId} submitted ${title}.`, {
+        eventId,
+        artistId,
+        metadata: { round: event.currentRound, submissionId: nextSubmission.id, title },
+      });
 
       openJudgingIfReady(state, eventId);
     }
@@ -1115,6 +1231,16 @@ export async function POST(request: Request) {
       assignment.status = "completed";
       assignment.completedAt = new Date().toISOString();
       resolveBattleWinner(state, battle.id, selectedWinnerArtistId, assignment.completedAt);
+      logProtocolEvent(state, "vote_recorded", `Judge ${assignment.judgeArtistId} selected ${selectedWinnerArtistId}.`, {
+        eventId: battle.eventId,
+        artistId: assignment.judgeArtistId,
+        metadata: {
+          assignmentId,
+          battleId: battle.id,
+          selectedWinnerArtistId,
+          scores,
+        },
+      });
       tryAdvanceEvent(state, battle.eventId);
       const judge = state.artists.find((artist) => artist.id === assignment.judgeArtistId);
       if (judge && judge.status !== "winner" && judge.status !== "eliminated") {
