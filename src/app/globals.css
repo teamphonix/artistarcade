@@ -2806,6 +2806,62 @@ button {
   filter: brightness(1.08);
 }
 
+.judge-scorecard {
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid rgba(255, 205, 91, 0.18);
+  border-radius: 0.7rem;
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+}
+
+.judge-scorecard.is-leading {
+  border-color: rgba(255, 224, 154, 0.72);
+  box-shadow: 0 0 22px rgba(255, 205, 91, 0.14);
+}
+
+.judge-scorecard > div {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.judge-scorecard > div strong {
+  color: var(--gold-bright);
+  font-size: 1.45rem;
+}
+
+.judge-scorecard label {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: minmax(7rem, 0.8fr) minmax(0, 1fr) 2rem;
+  margin: 0;
+}
+
+.judge-scorecard label span {
+  color: rgba(246, 230, 188, 0.78);
+  font-weight: 850;
+}
+
+.judge-scorecard label em {
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 750;
+}
+
+.judge-scorecard input[type="range"] {
+  accent-color: var(--gold-bright);
+  min-height: auto;
+  width: 100%;
+}
+
+.judge-scorecard output {
+  color: #f8f3e6;
+  font-weight: 900;
+  text-align: right;
+}
+
 .judge-audio-gate button:disabled,
 .judge-select:disabled,
 .artist-room-panel button:disabled {
@@ -3359,6 +3415,10 @@ button {
 
   .pilot-row {
     align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .judge-scorecard label {
     grid-template-columns: 1fr;
   }
 
@@ -4272,7 +4332,7 @@ button.artist-room-link.secondary {
   align-items: center;
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.28fr) minmax(12rem, 0.28fr);
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.28fr) minmax(12rem, 0.28fr) minmax(13rem, 0.36fr);
   padding: 1rem;
 }
 
@@ -4283,6 +4343,10 @@ button.artist-room-link.secondary {
   display: grid;
   gap: 0.25rem;
   padding: 0.8rem;
+}
+
+.test-scorecard em {
+  display: block;
 }
 
 .test-record-grid article.is-winner {

@@ -23,6 +23,8 @@ type Battle = {
   judge: Artist;
   winner: Artist;
   loser: Artist;
+  scores: Record<string, Record<string, number>>;
+  totals: Record<string, number>;
   reason: string;
 };
 
@@ -75,6 +77,13 @@ const secondNames = [
 ];
 
 const eventTitles = ["Lyrical Onslaught", "Story Mode", "Beat Talk", "Persona Pen"];
+const scoreCategories = [
+  { key: "lyrics", label: "Lyrics", weight: 25 },
+  { key: "delivery", label: "Delivery", weight: 20 },
+  { key: "originality", label: "Originality", weight: 20 },
+  { key: "flow", label: "Flow", weight: 15 },
+  { key: "impact", label: "Impact", weight: 20 },
+];
 const roundLabels: Record<number, string> = {
   1: "Round of 16",
   2: "Quarterfinals",
@@ -116,6 +125,20 @@ function pickJudge(allArtists: Artist[], battleEventId: string, battleIndex: num
   return eligibleJudges[(startIndex + battleIndex) % eligibleJudges.length];
 }
 
+function scoreSubmission(random: () => number) {
+  return scoreCategories.reduce(
+    (scorecard, category) => ({
+      ...scorecard,
+      [category.key]: 5 + Math.floor(random() * 6),
+    }),
+    {} as Record<string, number>,
+  );
+}
+
+function weightedTotal(scorecard: Record<string, number>) {
+  return Math.round(scoreCategories.reduce((sum, category) => sum + scorecard[category.key] * category.weight, 0) / 10);
+}
+
 function simulateEvent(
   eventId: string,
   title: string,
@@ -132,7 +155,22 @@ function simulateEvent(
     for (let index = 0; index < contenders.length; index += 2) {
       const artistA = contenders[index];
       const artistB = contenders[index + 1];
-      const winner = random() >= 0.5 ? artistA : artistB;
+      const scores = {
+        [artistA.id]: scoreSubmission(random),
+        [artistB.id]: scoreSubmission(random),
+      };
+      const totals = {
+        [artistA.id]: weightedTotal(scores[artistA.id]),
+        [artistB.id]: weightedTotal(scores[artistB.id]),
+      };
+      const winner =
+        totals[artistA.id] === totals[artistB.id]
+          ? random() >= 0.5
+            ? artistA
+            : artistB
+          : totals[artistA.id] > totals[artistB.id]
+            ? artistA
+            : artistB;
       const loser = winner.id === artistA.id ? artistB : artistA;
       const battleNumber = battles.length + 1;
       const judge = pickJudge(allArtists, eventId, battleNumber, random);
@@ -149,7 +187,9 @@ function simulateEvent(
         judge,
         winner,
         loser,
-        reason: `${judge.name} was assigned from ${judge.eventTitle} and voted for ${winner.name}.`,
+        scores,
+        totals,
+        reason: `${judge.name} scored ${artistA.name} ${totals[artistA.id]} and ${artistB.name} ${totals[artistB.id]}. ${winner.name} advanced by weighted score.`,
       });
       nextRound.push(winner);
     }
@@ -214,10 +254,11 @@ export default function TestRunPage() {
       <section className="test-hero">
         <div>
           <span className="protocol-kicker">Isolated protocol clone</span>
-          <h1>64 artists. Four arenas. Instant random resolution.</h1>
+          <h1>64 artists. Four arenas. Weighted score resolution.</h1>
           <p>
             This test run bypasses uploads and waiting. Every artist enters with $1, every placeholder submission is named
-            after the artist, a cross-event artist is assigned as judge, and each vote is recorded in the ledger.
+            after the artist, a cross-event artist is assigned as judge, and each battle is scored across five weighted
+            attributes.
           </p>
         </div>
         <aside className="test-control-card">
@@ -303,7 +344,7 @@ export default function TestRunPage() {
                             </span>
                             <strong>Winner: {battle.winner.name}</strong>
                             <em>
-                              Judge: {battle.judge.name} voted {battle.winner.name}
+                              Judge: {battle.judge.name} scored {battle.winner.name} {battle.totals[battle.winner.id]}
                             </em>
                           </article>
                         ))}
@@ -337,14 +378,20 @@ export default function TestRunPage() {
               <aside>
                 <span>Judge</span>
                 <strong>{battle.judge.name}</strong>
-                <em>
-                  Voted {battle.winner.name} over {battle.loser.name}
-                </em>
+                <em>{battle.winner.name} {battle.totals[battle.winner.id]} / {battle.loser.name} {battle.totals[battle.loser.id]}</em>
               </aside>
               <aside>
                 <span>Winner</span>
                 <strong>{battle.winner.name}</strong>
                 <em>{battle.loser.name} eliminated</em>
+              </aside>
+              <aside className="test-scorecard">
+                <span>Scorecard</span>
+                {scoreCategories.map((category) => (
+                  <em key={category.key}>
+                    {category.label}: {battle.scores[battle.winner.id][category.key]}-{battle.scores[battle.loser.id][category.key]} ({category.weight}%)
+                  </em>
+                ))}
               </aside>
             </article>
           ))}

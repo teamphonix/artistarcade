@@ -13,6 +13,7 @@ import {
   resetPilotState,
   scoreBattle,
   seedPilotState,
+  weightedScore,
   writePilotState,
   type ProtocolBattle,
   type ProtocolEntry,
@@ -675,6 +676,7 @@ async function readSupabaseState() {
         flow: judgment.flow,
         impact: judgment.impact,
       },
+      contestantScores: judgment.contestant_scores || undefined,
       selectedWinnerArtistId: judgment.selected_winner_artist_id,
       createdAt: judgment.created_at,
     })),
@@ -847,6 +849,7 @@ async function writeSupabaseState(state: ProtocolState) {
       originality: judgment.scores.originality,
       flow: judgment.scores.flow,
       impact: judgment.scores.impact,
+      contestant_scores: judgment.contestantScores || null,
       selected_winner_artist_id: judgment.selectedWinnerArtistId,
       created_at: judgment.createdAt,
     })),
@@ -1191,7 +1194,6 @@ export async function POST(request: Request) {
 
     if (action === "judge") {
       const assignmentId = String(body?.assignmentId || "");
-      const selectedWinnerArtistId = String(body?.selectedWinnerArtistId || "");
       const assignment = state.assignments.find((entry) => entry.id === assignmentId);
 
       if (!assignment) {
@@ -1199,8 +1201,8 @@ export async function POST(request: Request) {
       }
 
       const battle = state.battles.find((entry) => entry.id === assignment.battleId);
-      if (!battle || ![battle.artistAId, battle.artistBId].includes(selectedWinnerArtistId)) {
-        return NextResponse.json({ error: "Battle winner selection is invalid." }, { status: 400 });
+      if (!battle) {
+        return NextResponse.json({ error: "Battle is invalid." }, { status: 400 });
       }
 
       if (assignment.dueAt && new Date() > new Date(assignment.dueAt)) {
@@ -1208,20 +1210,47 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "This 15-minute judging window expired." }, { status: 409 });
       }
 
-      const scores = SCORE_CATEGORIES.reduce(
-        (nextScores, category) => ({
+      const rawContestantScores = body?.contestantScores || {};
+      const battleArtistIds = [battle.artistAId, battle.artistBId];
+      const fallbackWinnerArtistId = String(body?.selectedWinnerArtistId || "");
+      const contestantScores = battleArtistIds.reduce(
+        (nextScores, artistId) => ({
           ...nextScores,
-          [category.key]: clampScore(body?.scores?.[category.key]),
+          [artistId]: SCORE_CATEGORIES.reduce(
+            (scorecard, category) => ({
+              ...scorecard,
+              [category.key]: clampScore(
+                rawContestantScores?.[artistId]?.[category.key] ??
+                  (artistId === fallbackWinnerArtistId ? body?.scores?.[category.key] : 1),
+              ),
+            }),
+            {} as Record<ScoreKey, number>,
+          ),
         }),
-        {} as Record<ScoreKey, number>,
+        {} as Record<string, Record<ScoreKey, number>>,
       );
+      const scoredArtists = battleArtistIds
+        .map((artistId) => ({
+          artistId,
+          score: weightedScore(contestantScores[artistId]),
+        }))
+        .sort((a, b) => b.score - a.score);
+      const selectedWinnerArtistId =
+        scoredArtists[0]?.score === scoredArtists[1]?.score && battleArtistIds.includes(fallbackWinnerArtistId)
+          ? fallbackWinnerArtistId
+          : scoredArtists[0]?.artistId || fallbackWinnerArtistId;
+
+      if (!battleArtistIds.includes(selectedWinnerArtistId)) {
+        return NextResponse.json({ error: "Battle winner selection is invalid." }, { status: 400 });
+      }
 
       const judgment: ProtocolJudgment = {
         id: makeId(),
         assignmentId,
         battleId: battle.id,
         judgeArtistId: assignment.judgeArtistId,
-        scores,
+        scores: contestantScores[selectedWinnerArtistId],
+        contestantScores,
         selectedWinnerArtistId,
         createdAt: new Date().toISOString(),
       };
@@ -1238,7 +1267,8 @@ export async function POST(request: Request) {
           assignmentId,
           battleId: battle.id,
           selectedWinnerArtistId,
-          scores,
+          contestantScores,
+          weightedTotals: scoredArtists,
         },
       });
       tryAdvanceEvent(state, battle.eventId);

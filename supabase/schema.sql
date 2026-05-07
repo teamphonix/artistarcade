@@ -96,9 +96,13 @@ create table if not exists protocol_judgments (
   originality integer not null check (originality between 1 and 10),
   flow integer not null check (flow between 1 and 10),
   impact integer not null check (impact between 1 and 10),
+  contestant_scores jsonb,
   selected_winner_artist_id uuid not null references protocol_artists(id),
   created_at timestamptz not null default now()
 );
+
+alter table protocol_judgments
+  add column if not exists contestant_scores jsonb;
 
 create table if not exists protocol_wallet_ledger (
   id uuid primary key default gen_random_uuid(),

@@ -38,6 +38,12 @@ type MatchSubmission = {
   durationSeconds: number;
 };
 
+type ScoreCategory = {
+  key: "lyrics" | "delivery" | "originality" | "flow" | "impact";
+  label: string;
+  weight: number;
+};
+
 type EventSummary = {
   id: string;
   title: string;
@@ -58,7 +64,11 @@ type ProtocolPayload = {
   battles: Battle[];
   assignments: Assignment[];
   submissions: MatchSubmission[];
+  scoreCategories: ScoreCategory[];
 };
+
+type Scorecard = Record<ScoreCategory["key"], number>;
+type ContestantScores = Record<string, Scorecard>;
 
 function relativeCountdown(date: string | null) {
   if (!date) {
@@ -92,6 +102,29 @@ function easternTime(date: string | null) {
   });
 }
 
+function defaultScorecard(categories: ScoreCategory[] = []) {
+  return categories.reduce(
+    (scorecard, category) => ({
+      ...scorecard,
+      [category.key]: 5,
+    }),
+    {} as Scorecard,
+  );
+}
+
+function weightedTotal(scorecard: Scorecard | undefined, categories: ScoreCategory[] = []) {
+  if (!scorecard) {
+    return 0;
+  }
+
+  return Math.round(
+    categories.reduce((sum, category) => {
+      const score = Math.min(10, Math.max(1, Number(scorecard[category.key] || 1)));
+      return sum + score * category.weight;
+    }, 0) / 10,
+  );
+}
+
 export default function ArtistEventRoomPage() {
   const params = useParams<{ artistId: string }>();
   const artistId = params.artistId;
@@ -102,6 +135,7 @@ export default function ArtistEventRoomPage() {
   const [durationSeconds, setDurationSeconds] = useState(180);
   const [file, setFile] = useState<File | null>(null);
   const [selectedWinnerId, setSelectedWinnerId] = useState("");
+  const [contestantScores, setContestantScores] = useState<ContestantScores>({});
   const [heardFullTrack, setHeardFullTrack] = useState<Record<string, boolean>>({});
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [playingSubmissionId, setPlayingSubmissionId] = useState<string | null>(null);
@@ -115,6 +149,7 @@ export default function ArtistEventRoomPage() {
     if (nextAssignmentId !== assignmentIdRef.current) {
       assignmentIdRef.current = nextAssignmentId;
       setSelectedWinnerId("");
+      setContestantScores({});
       setHeardFullTrack({});
       setPlayingSubmissionId(null);
       audioRefs.current = {};
@@ -265,9 +300,23 @@ export default function ArtistEventRoomPage() {
   const countdownLabel = assignment?.dueAt ? relativeCountdown(assignment.dueAt) : "Awaiting trigger";
   const playbackUnlocked = matchupArtists.length > 0 && matchupArtists.every(({ submission }) => heardFullTrack[submission.id]);
   const eventStarted = eventRoom?.queueClosedAt ? new Date(eventRoom.queueClosedAt).getTime() <= currentTime : true;
+  const scoreCategories = useMemo(() => payload?.scoreCategories || [], [payload?.scoreCategories]);
+  const winningScoreArtistId = useMemo(() => {
+    if (matchupArtists.length !== 2 || scoreCategories.length === 0) {
+      return "";
+    }
+
+    return matchupArtists
+      .map(({ artist: contender }) => ({
+        artistId: contender.id,
+        total: weightedTotal(contestantScores[contender.id] || defaultScorecard(scoreCategories), scoreCategories),
+      }))
+      .sort((a, b) => b.total - a.total)[0]?.artistId || "";
+  }, [contestantScores, matchupArtists, scoreCategories]);
 
   async function handleJudgeSubmission() {
-    if (!assignment || !selectedWinnerId || !playbackUnlocked) {
+    const selectedByScore = winningScoreArtistId || selectedWinnerId;
+    if (!assignment || !selectedByScore || !playbackUnlocked) {
       return;
     }
 
@@ -275,13 +324,21 @@ export default function ArtistEventRoomPage() {
     setMessage("");
 
     try {
+      const completeContestantScores = matchupArtists.reduce(
+        (nextScores, { artist: contender }) => ({
+          ...nextScores,
+          [contender.id]: contestantScores[contender.id] || defaultScorecard(scoreCategories),
+        }),
+        {} as ContestantScores,
+      );
       const response = await fetch("/api/pilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "judge",
           assignmentId: assignment.id,
-          selectedWinnerArtistId: selectedWinnerId,
+          selectedWinnerArtistId: selectedByScore,
+          contestantScores: completeContestantScores,
         }),
       });
       const data = await response.json();
@@ -297,6 +354,16 @@ export default function ArtistEventRoomPage() {
     } finally {
       setIsBusy(false);
     }
+  }
+
+  function updateContestantScore(artistId: string, key: ScoreCategory["key"], value: number) {
+    setContestantScores((current) => ({
+      ...current,
+      [artistId]: {
+        ...(current[artistId] || defaultScorecard(scoreCategories)),
+        [key]: Math.min(10, Math.max(1, Math.round(value))),
+      },
+    }));
   }
 
   function playSubmission(submissionId: string) {
@@ -450,14 +517,15 @@ export default function ArtistEventRoomPage() {
                       {judgingEvent?.title || "Judging wave"} round {battle.round}
                     </strong>
                     <p>
-                      The clock started when this wave was distributed. Listen to both tracks all the way through once to unlock
-                      your decision.
+                      The clock started when this wave was distributed. Listen to both tracks all the way through once,
+                      then score both contenders across the weighted judging attributes.
                     </p>
                     <div className="judge-playback-grid">
                       {matchupArtists.map(({ artist: competitor, submission: matchupSubmission }) => {
                         const heardOnce = !!heardFullTrack[matchupSubmission.id];
-                        const isSelected = selectedWinnerId === competitor.id;
+                        const isSelected = winningScoreArtistId === competitor.id;
                         const isPlaying = playingSubmissionId === matchupSubmission.id;
+                        const scorecard = contestantScores[competitor.id] || defaultScorecard(scoreCategories);
 
                         return (
                           <article className="judge-playback-card" key={matchupSubmission.id}>
@@ -502,28 +570,48 @@ export default function ArtistEventRoomPage() {
                                 </button>
                               </div>
                             ) : null}
-                            <button
-                              className={isSelected ? "judge-select is-selected" : "judge-select"}
-                              disabled={!playbackUnlocked || assignmentExpired || isBusy}
-                              onClick={() => setSelectedWinnerId(competitor.id)}
-                              type="button"
-                            >
-                              Select {competitor.name}
-                            </button>
+                            <div className={isSelected ? "judge-scorecard is-leading" : "judge-scorecard"}>
+                              <div>
+                                <span>Weighted total</span>
+                                <strong>{weightedTotal(scorecard, scoreCategories)}</strong>
+                              </div>
+                              {scoreCategories.map((category) => (
+                                <label key={category.key}>
+                                  <span>
+                                    {category.label} <em>{category.weight}%</em>
+                                  </span>
+                                  <input
+                                    disabled={!playbackUnlocked || assignmentExpired || isBusy}
+                                    max="10"
+                                    min="1"
+                                    onChange={(event) =>
+                                      updateContestantScore(competitor.id, category.key, Number(event.target.value))
+                                    }
+                                    type="range"
+                                    value={scorecard[category.key]}
+                                  />
+                                  <output>{scorecard[category.key]}</output>
+                                </label>
+                              ))}
+                            </div>
                           </article>
                         );
                       })}
                     </div>
                     <div className="judge-status-strip">
-                      <span>{playbackUnlocked ? "Decision unlocked" : "Both tracks must finish once"}</span>
+                      <span>
+                        {playbackUnlocked
+                          ? `Scorecard unlocked. Leader: ${matchupArtists.find(({ artist: contender }) => contender.id === winningScoreArtistId)?.artist.name || "TBD"}`
+                          : "Both tracks must finish once"}
+                      </span>
                       <strong>{assignmentExpired ? "Judging window expired" : `Time left ${countdownLabel}`}</strong>
                     </div>
                     <button
-                      disabled={!playbackUnlocked || !selectedWinnerId || assignmentExpired || isBusy}
+                      disabled={!playbackUnlocked || !winningScoreArtistId || assignmentExpired || isBusy}
                       onClick={() => void handleJudgeSubmission()}
                       type="button"
                     >
-                      Submit decision
+                      Submit scorecard
                     </button>
                   </>
                 ) : (

@@ -105,6 +105,7 @@ export type ProtocolJudgment = {
   battleId: string;
   judgeArtistId: string;
   scores: Record<ScoreKey, number>;
+  contestantScores?: Record<string, Record<ScoreKey, number>>;
   selectedWinnerArtistId: string;
   createdAt: string;
 };
@@ -266,6 +267,16 @@ export function weightedScore(scores: Record<ScoreKey, number>) {
   return Math.round(total / 10);
 }
 
+export function blankScores(value = 1) {
+  return SCORE_CATEGORIES.reduce(
+    (scores, category) => ({
+      ...scores,
+      [category.key]: clampScore(value),
+    }),
+    {} as Record<ScoreKey, number>,
+  );
+}
+
 export function getEventEntries(state: ProtocolState, eventId: string) {
   return state.entries
     .filter((entry) => entry.eventId === eventId)
@@ -285,9 +296,15 @@ export function scoreBattle(state: ProtocolState, battleId: string) {
   const judgments = state.judgments.filter((judgment) => judgment.battleId === battleId);
   const artistScores = [battle.artistAId, battle.artistBId].map((artistId) => {
     const votes = judgments.filter((judgment) => judgment.selectedWinnerArtistId === artistId).length;
-    const scoreTotal = judgments
-      .filter((judgment) => judgment.selectedWinnerArtistId === artistId)
-      .reduce((sum, judgment) => sum + weightedScore(judgment.scores), 0);
+    const scoreTotal = judgments.reduce((sum, judgment) => {
+      const scorecard = judgment.contestantScores?.[artistId];
+
+      if (scorecard) {
+        return sum + weightedScore(scorecard);
+      }
+
+      return sum + (judgment.selectedWinnerArtistId === artistId ? weightedScore(judgment.scores) : 0);
+    }, 0);
 
     return {
       artistId,
@@ -296,7 +313,7 @@ export function scoreBattle(state: ProtocolState, battleId: string) {
     };
   });
 
-  artistScores.sort((a, b) => b.votes - a.votes || b.score - a.score);
+  artistScores.sort((a, b) => b.score - a.score || b.votes - a.votes);
 
   return {
     battle,
