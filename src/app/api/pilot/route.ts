@@ -158,6 +158,10 @@ function tryAdvanceEvent(state: ProtocolState, eventId: string) {
     return;
   }
 
+  if (event.phase === "complete" || event.winnerArtistId) {
+    return;
+  }
+
   const roundBattles = state.battles.filter((battle) => battle.eventId === eventId && battle.round === event.currentRound);
   if (roundBattles.length === 0 || roundBattles.some((battle) => battle.status !== "complete" || !battle.winnerArtistId)) {
     return;
@@ -453,8 +457,8 @@ function buildNotifications(state: ProtocolState) {
           eventId: event.id,
           level: "info",
           title: "Entry confirmed",
-          body: `${event.title} has your $1 entry. The queue is ${entries.length}/16.`,
-          actionHref: `/artist/${artist.id}/events`,
+          body: `${event.title} has your $1 entry. The queue is ${entries.length}/16. Your event room will show the next live step when the protocol opens it.`,
+          actionHref: `/artist/${artist.id}/event`,
           createdAt: entry.joinedAt,
         });
       }

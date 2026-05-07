@@ -129,6 +129,7 @@ export default function ArtistEventsPortalPage() {
 
   const artist = payload?.artists.find((entry) => entry.id === artistId) || null;
   const currentEntry = payload?.events.flatMap((event) => event.entries).find((entry) => entry.artistId === artistId) || null;
+  const currentEvent = payload?.events.find((event) => event.id === currentEntry?.eventId) || null;
   const eventTypes = useMemo(() => {
     const types = new Set((payload?.events || []).map((event) => event.eventType || "rap"));
     return Array.from(types);
@@ -171,6 +172,22 @@ export default function ArtistEventsPortalPage() {
 
         {message ? <p className="artist-entry-message">{message}</p> : null}
 
+        {currentEvent ? (
+          <section className="artist-dashboard-panel artist-dashboard-panel-wide artist-next-step">
+            <div>
+              <span>Current event</span>
+              <h2>{currentEvent.title}</h2>
+              <p>
+                Your entry is confirmed and this profile is locked to the queue. Open the event room to watch the
+                next protocol step and submit when the window goes live.
+              </p>
+            </div>
+            <Link className="artist-room-link" href={`/artist/${artist.id}/event`}>
+              Open event room
+            </Link>
+          </section>
+        ) : null}
+
         <section className="artist-dashboard-panel artist-dashboard-panel-wide">
           <h2>Event categories</h2>
           <div className="artist-type-grid">
@@ -195,8 +212,9 @@ export default function ArtistEventsPortalPage() {
         <section className="artist-dashboard-panel artist-dashboard-panel-wide">
           <h2>Available events</h2>
           <p>
-            Pick an event to inspect the queue. When the 16th artist joins, the system locks the queue automatically,
-            alerts artists in-app, and opens the submission window from the scheduled start time.
+            {currentEvent
+              ? "You can review open queues, but beta rules allow one active event per artist profile."
+              : "Pick an event to inspect the queue. When the 16th artist joins, the system locks the queue automatically, alerts artists in-app, and opens the submission window from the scheduled start time."}
           </p>
           <div className="artist-event-grid">
             {visibleEvents.length > 0 ? (

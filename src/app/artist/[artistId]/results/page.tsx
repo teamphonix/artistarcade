@@ -55,7 +55,14 @@ type Judgment = {
   assignmentId: string;
   battleId: string;
   judgeArtistId: string;
+  contestantScores?: Record<string, Record<string, number>>;
   selectedWinnerArtistId: string;
+};
+
+type ScoreCategory = {
+  key: string;
+  label: string;
+  weight: number;
 };
 
 type ProtocolPayload = {
@@ -65,10 +72,24 @@ type ProtocolPayload = {
   assignments: Assignment[];
   submissions: Submission[];
   judgments: Judgment[];
+  scoreCategories: ScoreCategory[];
 };
 
 function money(cents: number) {
   return `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function weightedTotal(scorecard: Record<string, number> | undefined, categories: ScoreCategory[]) {
+  if (!scorecard) {
+    return 0;
+  }
+
+  return Math.round(
+    categories.reduce((sum, category) => {
+      const score = Math.min(10, Math.max(1, Number(scorecard[category.key] || 1)));
+      return sum + score * category.weight;
+    }, 0) / 10,
+  );
 }
 
 export default function ArtistResultsPage() {
@@ -218,6 +239,10 @@ export default function ArtistResultsPage() {
                 ? payload.judgments.find((entry) => entry.assignmentId === assignment.id) || null
                 : null;
               const advanced = battle.winnerArtistId === artistId;
+              const artistScorecard = judgment?.contestantScores?.[artistId];
+              const opponentScorecard = judgment?.contestantScores?.[opponentId];
+              const artistTotal = weightedTotal(artistScorecard, payload.scoreCategories);
+              const opponentTotal = weightedTotal(opponentScorecard, payload.scoreCategories);
 
               return (
                 <article className="artist-result-card" key={battle.id}>
@@ -256,6 +281,28 @@ export default function ArtistResultsPage() {
                     </span>
                     <strong>{advanced ? "You moved forward" : battle.status === "complete" ? "Your run ended here" : "Awaiting resolution"}</strong>
                   </div>
+                  {artistScorecard && opponentScorecard ? (
+                    <div className="artist-result-scorecard">
+                      <div>
+                        <span>Your weighted total</span>
+                        <strong>{artistTotal}</strong>
+                      </div>
+                      <div>
+                        <span>{opponent?.name || "Opponent"} total</span>
+                        <strong>{opponentTotal}</strong>
+                      </div>
+                      {payload.scoreCategories.map((category) => (
+                        <p key={category.key}>
+                          <span>
+                            {category.label} ({category.weight}%)
+                          </span>
+                          <strong>
+                            {artistScorecard[category.key]} - {opponentScorecard[category.key]}
+                          </strong>
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
                 </article>
               );
             })

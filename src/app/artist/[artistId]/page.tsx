@@ -340,12 +340,12 @@ export default function ArtistDashboardPage() {
               is visible for the product path, but locked during beta.
             </p>
             <div className="artist-dashboard-event">
-              <span>{availableEvents.length} events open for entry</span>
-              <span>{currentEntry ? "You are already locked into an event." : "Choose your next battle from the portal."}</span>
+              <span>{currentEntry ? `${currentEvent?.title || "Current event"} is locked to your profile` : `${availableEvents.length} events open for entry`}</span>
+              <span>{currentEntry ? "Open the event room for the next protocol step." : "Choose your next battle from the portal."}</span>
             </div>
             <div className="artist-dashboard-links">
-              <Link className="artist-room-link" href={`/artist/${artist.id}/events`}>
-                Open arena
+              <Link className="artist-room-link" href={currentEntry ? `/artist/${artist.id}/event` : `/artist/${artist.id}/events`}>
+                {currentEntry ? "Open event room" : "Open arena"}
               </Link>
               <button className="artist-room-link secondary" disabled type="button">
                 Create event - beta locked

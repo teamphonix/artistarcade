@@ -4202,6 +4202,49 @@ button.artist-room-link.secondary {
   margin: 0;
 }
 
+.artist-result-scorecard {
+  background: #10141b;
+  border: 1px solid #252b36;
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0.9rem;
+  padding: 0.85rem;
+}
+
+.artist-result-scorecard > div {
+  background: #151922;
+  border: 1px solid #252b36;
+  border-radius: 0.6rem;
+  padding: 0.75rem;
+}
+
+.artist-result-scorecard span {
+  color: #8f98a6;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.artist-result-scorecard strong {
+  color: #f8f3e6;
+}
+
+.artist-result-scorecard > div strong {
+  color: #f0c96a;
+  display: block;
+  font-size: 1.5rem;
+  margin-top: 0.15rem;
+}
+
+.artist-result-scorecard p {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin: 0;
+}
+
 .protocol-audit-row {
   align-items: start;
   display: grid;
@@ -4277,7 +4320,8 @@ button.artist-room-link.secondary {
 
   .pilot-notification-panel,
   .artist-next-step,
-  .protocol-notification {
+  .protocol-notification,
+  .artist-result-scorecard {
     grid-template-columns: 1fr;
   }
 }
