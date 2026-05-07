@@ -3993,7 +3993,8 @@ button.artist-room-link.secondary {
 .artist-result-track,
 .artist-empty-state,
 .protocol-summary span,
-.pilot-row {
+.pilot-row,
+.protocol-audit-row {
   background: #10141b;
   border: 1px solid #252b36;
   border-radius: 0.75rem;
@@ -4054,6 +4055,53 @@ button.artist-room-link.secondary {
   width: 62%;
 }
 
+.protocol-audit-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.protocol-audit-row {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(13rem, 0.45fr);
+  padding: 0.85rem;
+}
+
+.protocol-audit-row div {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.protocol-audit-row span,
+.protocol-audit-row em {
+  color: #8f98a6;
+  font-size: 0.76rem;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.protocol-audit-row strong {
+  color: #f8f3e6;
+  font-size: 0.95rem;
+  text-transform: capitalize;
+}
+
+.protocol-audit-row p {
+  color: #aeb6c2;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.protocol-audit-row em {
+  background: #151922;
+  border: 1px solid #252b36;
+  border-radius: 0.6rem;
+  overflow-wrap: anywhere;
+  padding: 0.7rem;
+}
+
 @media (max-width: 900px) {
   .protocol-topbar,
   .protocol-hero {
@@ -4079,6 +4127,10 @@ button.artist-room-link.secondary {
   .artist-dashboard-header,
   .artist-room-header,
   .pilot-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .protocol-audit-row {
     grid-template-columns: 1fr;
   }
 }

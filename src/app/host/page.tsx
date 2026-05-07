@@ -56,10 +56,21 @@ type EventSummary = {
   battles: Battle[];
 };
 
+type AuditEntry = {
+  id: string;
+  eventId: string | null;
+  artistId: string | null;
+  action: string;
+  note: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
 type ProtocolPayload = {
   backend: "local" | "supabase";
   artists: Artist[];
   events: EventSummary[];
+  auditLog: AuditEntry[];
   totals: {
     artists: number;
     entries: number;
@@ -81,6 +92,23 @@ function shortTime(date: string | null) {
   }
 
   return new Date(date).toLocaleString([], { dateStyle: "short", timeStyle: "short" });
+}
+
+function formatAuditAction(action: string) {
+  return action.replaceAll("_", " ");
+}
+
+function formatAuditMetadata(metadata: Record<string, unknown>) {
+  const entries = Object.entries(metadata || {}).filter(([, value]) => value !== null && value !== undefined);
+
+  if (entries.length === 0) {
+    return "No extra protocol data";
+  }
+
+  return entries
+    .slice(0, 4)
+    .map(([key, value]) => `${key}: ${String(value)}`)
+    .join(" | ");
 }
 
 function relativeCountdown(date: string | null) {
@@ -552,6 +580,33 @@ export default function HostPage() {
                 <span>{battle.winnerArtistId ? artistMap.get(battle.winnerArtistId)?.name : "TBD"}</span>
               </div>
             ))}
+          </div>
+        </article>
+
+        <article className="pilot-panel pilot-panel-wide">
+          <h2>Protocol audit trail</h2>
+          <p>
+            The latest automated decisions, artist actions, wallet moves, queue locks, judging waves, and round
+            transitions written by the protocol state machine.
+          </p>
+          <div className="protocol-audit-list">
+            {(payload.auditLog || []).length > 0 ? (
+              payload.auditLog.slice(0, 24).map((entry) => (
+                <div className="protocol-audit-row" key={entry.id}>
+                  <div>
+                    <span>{shortTime(entry.createdAt)}</span>
+                    <strong>{formatAuditAction(entry.action)}</strong>
+                    <p>{entry.note}</p>
+                  </div>
+                  <em>{formatAuditMetadata(entry.metadata)}</em>
+                </div>
+              ))
+            ) : (
+              <div className="artist-empty-state">
+                <strong>No audit events yet</strong>
+                <span>Run a queue, wallet, submission, or judging action and the protocol will write here.</span>
+              </div>
+            )}
           </div>
         </article>
       </section>
