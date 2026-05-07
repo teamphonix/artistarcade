@@ -66,11 +66,24 @@ type AuditEntry = {
   createdAt: string;
 };
 
+type Notification = {
+  id: string;
+  audience: "artist" | "host";
+  artistId: string | null;
+  eventId: string | null;
+  level: "info" | "action" | "success" | "warning";
+  title: string;
+  body: string;
+  actionHref: string | null;
+  createdAt: string;
+};
+
 type ProtocolPayload = {
   backend: "local" | "supabase";
   artists: Artist[];
   events: EventSummary[];
   auditLog: AuditEntry[];
+  notifications: Notification[];
   totals: {
     artists: number;
     entries: number;
@@ -273,6 +286,9 @@ export default function HostPage() {
   const selectedEvent = payload?.events.find((event) => event.id === selectedEventId) || payload?.events[0] || null;
 
   const artistMap = useMemo(() => new Map(payload?.artists.map((artist) => [artist.id, artist]) || []), [payload]);
+  const hostNotifications =
+    payload?.notifications.filter((notification) => notification.audience === "host") || [];
+  const actionNotifications = hostNotifications.filter((notification) => notification.level === "action").length;
 
   async function postProtocol(action: string, body = {}) {
     setIsBusy(true);
@@ -423,6 +439,17 @@ export default function HostPage() {
         </article>
       </section>
 
+      <section className="pilot-panel pilot-notification-panel">
+        <div>
+          <span className="pilot-kicker">Moderation Center</span>
+          <h2>Protocol notifications</h2>
+          <p>
+            Action cards show where the pilot needs attention. These are in-app now and can route to text/email later.
+          </p>
+        </div>
+        <strong>{actionNotifications} actions</strong>
+      </section>
+
       <section className="pilot-tabs" aria-label="Host events">
         {payload.events.map((event) => (
           <button
@@ -562,6 +589,29 @@ export default function HostPage() {
                 <span>{money(entry.paidCents)}</span>
               </div>
             ))}
+          </div>
+        </article>
+
+        <article className="pilot-panel pilot-panel-wide">
+          <h2>Host notifications</h2>
+          <div className="protocol-notification-list">
+            {hostNotifications.length > 0 ? (
+              hostNotifications.slice(0, 8).map((notification) => (
+                <article className={`protocol-notification is-${notification.level}`} key={notification.id}>
+                  <div>
+                    <span>{shortTime(notification.createdAt)}</span>
+                    <strong>{notification.title}</strong>
+                    <p>{notification.body}</p>
+                  </div>
+                  <em>{notification.eventId ? payload.events.find((event) => event.id === notification.eventId)?.title : "Protocol"}</em>
+                </article>
+              ))
+            ) : (
+              <div className="artist-empty-state">
+                <strong>No host actions</strong>
+                <span>The pilot has no pending moderation cards right now.</span>
+              </div>
+            )}
           </div>
         </article>
 

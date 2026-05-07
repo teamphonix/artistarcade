@@ -349,6 +349,193 @@ function distributeJudgingWave(state: ProtocolState, eventId: string) {
   return { distributed };
 }
 
+function buildNotifications(state: ProtocolState) {
+  const now = new Date().toISOString();
+  const notifications: Array<{
+    id: string;
+    audience: "artist" | "host";
+    artistId: string | null;
+    eventId: string | null;
+    level: "info" | "action" | "success" | "warning";
+    title: string;
+    body: string;
+    actionHref: string | null;
+    createdAt: string;
+  }> = [];
+
+  state.events.forEach((event) => {
+    const entries = state.entries.filter((entry) => entry.eventId === event.id);
+    const eventSubmissions = state.submissions.filter(
+      (submission) => submission.eventId === event.id && submission.round === event.currentRound,
+    );
+    const roundBattles = state.battles.filter((battle) => battle.eventId === event.id && battle.round === event.currentRound);
+    const activeRoundArtistIds = new Set(roundBattles.flatMap((battle) => [battle.artistAId, battle.artistBId]));
+    const missingSubmissions = [...activeRoundArtistIds].filter(
+      (artistId) => !eventSubmissions.some((submission) => submission.artistId === artistId),
+    );
+    const eventAssignments = state.assignments.filter((assignment) =>
+      roundBattles.some((battle) => battle.id === assignment.battleId),
+    );
+    const openAssignments = eventAssignments.filter((assignment) => assignment.status === "assigned");
+
+    if (event.phase === "queue" && entries.length === ARTISTS_PER_EVENT) {
+      notifications.push({
+        id: `host-${event.id}-queue-full`,
+        audience: "host",
+        artistId: null,
+        eventId: event.id,
+        level: "action",
+        title: `${event.title} is ready to lock`,
+        body: "The queue has 16 paid entries. The protocol can lock the event and open submissions.",
+        actionHref: "/host",
+        createdAt: event.queueClosedAt || now,
+      });
+    }
+
+    if (event.phase === "submission" && missingSubmissions.length > 0) {
+      notifications.push({
+        id: `host-${event.id}-submissions-missing`,
+        audience: "host",
+        artistId: null,
+        eventId: event.id,
+        level: "warning",
+        title: `${event.title} needs ${missingSubmissions.length} submissions`,
+        body: "The submission window is open. Artists who have not submitted still need to act before judging can open.",
+        actionHref: "/host",
+        createdAt: event.submissionDeadline || now,
+      });
+    }
+
+    if (event.phase === "judging" && openAssignments.length > 0) {
+      notifications.push({
+        id: `host-${event.id}-judging-live`,
+        audience: "host",
+        artistId: null,
+        eventId: event.id,
+        level: "action",
+        title: `${event.title} judging is live`,
+        body: `${openAssignments.length} judging cards are active for round ${event.currentRound}.`,
+        actionHref: "/host",
+        createdAt: event.judgingDeadline || now,
+      });
+    }
+
+    if (event.phase === "complete" && event.winnerArtistId) {
+      notifications.push({
+        id: `host-${event.id}-complete`,
+        audience: "host",
+        artistId: null,
+        eventId: event.id,
+        level: "success",
+        title: `${event.title} completed`,
+        body: "Winner finalized, prize ledger written, and company revenue recorded.",
+        actionHref: "/host",
+        createdAt: now,
+      });
+    }
+
+    entries.forEach((entry) => {
+      const artist = state.artists.find((savedArtist) => savedArtist.id === entry.artistId);
+      if (!artist) {
+        return;
+      }
+
+      const artistSubmission = eventSubmissions.find((submission) => submission.artistId === artist.id);
+      const artistAssignment = state.assignments.find(
+        (assignment) => assignment.judgeArtistId === artist.id && assignment.status === "assigned",
+      );
+
+      if (event.phase === "queue") {
+        notifications.push({
+          id: `artist-${artist.id}-${event.id}-queued`,
+          audience: "artist",
+          artistId: artist.id,
+          eventId: event.id,
+          level: "info",
+          title: "Entry confirmed",
+          body: `${event.title} has your $1 entry. The queue is ${entries.length}/16.`,
+          actionHref: `/artist/${artist.id}/events`,
+          createdAt: entry.joinedAt,
+        });
+      }
+
+      if (event.phase === "submission" && activeRoundArtistIds.has(artist.id) && !artistSubmission) {
+        notifications.push({
+          id: `artist-${artist.id}-${event.id}-submit-round-${event.currentRound}`,
+          audience: "artist",
+          artistId: artist.id,
+          eventId: event.id,
+          level: "action",
+          title: "Submission window open",
+          body: `Round ${event.currentRound} is live for ${event.title}. Upload your track before the deadline.`,
+          actionHref: `/artist/${artist.id}/event`,
+          createdAt: event.queueClosedAt || now,
+        });
+      }
+
+      if (event.phase === "submission" && artistSubmission) {
+        notifications.push({
+          id: `artist-${artist.id}-${event.id}-submitted-round-${event.currentRound}`,
+          audience: "artist",
+          artistId: artist.id,
+          eventId: event.id,
+          level: "success",
+          title: "Submission received",
+          body: `${artistSubmission.title} is locked for round ${event.currentRound}. Stand by for judging.`,
+          actionHref: `/artist/${artist.id}/event`,
+          createdAt: artistSubmission.submittedAt,
+        });
+      }
+
+      if (artistAssignment) {
+        notifications.push({
+          id: `artist-${artist.id}-assignment-${artistAssignment.id}`,
+          audience: "artist",
+          artistId: artist.id,
+          eventId: event.id,
+          level: "action",
+          title: "Judging card live",
+          body: "Your cross-event scorecard is available. Listen, score both artists, and submit before the timer expires.",
+          actionHref: `/artist/${artist.id}/event`,
+          createdAt: artistAssignment.openedAt || artistAssignment.assignedAt,
+        });
+      }
+
+      if (event.phase === "complete" && event.winnerArtistId === artist.id) {
+        notifications.push({
+          id: `artist-${artist.id}-${event.id}-winner`,
+          audience: "artist",
+          artistId: artist.id,
+          eventId: event.id,
+          level: "success",
+          title: "Winner finalized",
+          body: `You won ${event.title}. Your prize was added to your wallet ledger.`,
+          actionHref: `/artist/${artist.id}/results`,
+          createdAt: now,
+        });
+      }
+    });
+  });
+
+  state.artists.forEach((artist) => {
+    if (artist.walletCents < 100 && !state.entries.some((entry) => entry.artistId === artist.id)) {
+      notifications.push({
+        id: `artist-${artist.id}-wallet-low`,
+        audience: "artist",
+        artistId: artist.id,
+        eventId: null,
+        level: "action",
+        title: "Add funds to enter",
+        body: "A $1 wallet balance is required before joining a beta event.",
+        actionHref: `/artist/${artist.id}`,
+        createdAt: artist.createdAt,
+      });
+    }
+  });
+
+  return notifications.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 function summarize(state: ProtocolState) {
   const events = state.events.map((event) => {
     const entries = getEventEntries(state, event.id);
@@ -385,6 +572,7 @@ function summarize(state: ProtocolState) {
     assignments: state.assignments,
     judgments: state.judgments,
     walletLedger: state.walletLedger,
+    notifications: buildNotifications(state),
     auditLog: [...(state.auditLog || [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100),
     scoredBattles,
     scoreCategories: SCORE_CATEGORIES,

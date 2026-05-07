@@ -38,6 +38,18 @@ type EventSummary = {
   entries: Entry[];
 };
 
+type Notification = {
+  id: string;
+  audience: "artist" | "host";
+  artistId: string | null;
+  eventId: string | null;
+  level: "info" | "action" | "success" | "warning";
+  title: string;
+  body: string;
+  actionHref: string | null;
+  createdAt: string;
+};
+
 type ProtocolPayload = {
   artists: Artist[];
   events: EventSummary[];
@@ -57,6 +69,7 @@ type ProtocolPayload = {
     status: string;
     dueAt: string | null;
   }>;
+  notifications: Notification[];
 };
 
 function money(cents: number) {
@@ -187,6 +200,11 @@ export default function ArtistDashboardPage() {
   const artistAssignment = payload?.assignments.find(
     (assignment) => assignment.judgeArtistId === artistId && assignment.status === "assigned",
   );
+  const artistNotifications =
+    payload?.notifications.filter((notification) => notification.audience === "artist" && notification.artistId === artistId) ||
+    [];
+  const priorityNotification =
+    artistNotifications.find((notification) => notification.level === "action") || artistNotifications[0] || null;
 
   if (!payload || !artist) {
     return (
@@ -222,6 +240,20 @@ export default function ArtistDashboardPage() {
         </header>
 
         {message ? <p className="artist-entry-message">{message}</p> : null}
+
+        <section className="artist-dashboard-panel artist-dashboard-panel-wide artist-next-step">
+          <div>
+            <span>Next protocol step</span>
+            <h2>{priorityNotification?.title || "Enter the arena"}</h2>
+            <p>
+              {priorityNotification?.body ||
+                "Add funds, choose an open event, submit when the window opens, judge when assigned, and check results after the bracket resolves."}
+            </p>
+          </div>
+          <Link className="artist-room-link" href={priorityNotification?.actionHref || `/artist/${artist.id}/events`}>
+            Continue
+          </Link>
+        </section>
 
         <section className="artist-dashboard-grid">
           <article className="artist-dashboard-card">
@@ -320,6 +352,33 @@ export default function ArtistDashboardPage() {
               </button>
             </div>
           </article>
+        </section>
+
+        <section className="artist-dashboard-panel artist-dashboard-panel-wide">
+          <h2>Notifications</h2>
+          <div className="protocol-notification-list">
+            {artistNotifications.length > 0 ? (
+              artistNotifications.slice(0, 6).map((notification) => (
+                <article className={`protocol-notification is-${notification.level}`} key={notification.id}>
+                  <div>
+                    <span>{shortTime(notification.createdAt)}</span>
+                    <strong>{notification.title}</strong>
+                    <p>{notification.body}</p>
+                  </div>
+                  {notification.actionHref ? (
+                    <Link className="artist-room-link secondary" href={notification.actionHref}>
+                      Open
+                    </Link>
+                  ) : null}
+                </article>
+              ))
+            ) : (
+              <div className="artist-empty-state">
+                <strong>No notifications yet</strong>
+                <span>Your protocol alerts will appear here as the event moves.</span>
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="artist-dashboard-panel artist-dashboard-panel-wide">
