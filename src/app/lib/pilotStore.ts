@@ -9,6 +9,7 @@ export const SUBMISSION_LIMIT_SECONDS = 180;
 export const SUBMISSION_WINDOW_HOURS = 24;
 export const JUDGING_WINDOW_MINUTES = 15;
 export const JUDGES_PER_BATTLE = 1;
+export const BETA_RULES_VERSION = "2026-05-07";
 
 export const SCORE_CATEGORIES = [
   { key: "lyrics", label: "Lyrics", weight: 25 },
@@ -37,6 +38,8 @@ export type ProtocolArtist = {
     sms: boolean;
     push: boolean;
   };
+  betaRulesAcceptedAt?: string | null;
+  betaRulesVersion?: string | null;
   createdAt: string;
 };
 
@@ -188,6 +191,8 @@ const seedArtists: ProtocolArtist[] = Array.from({ length: TOTAL_MVP_ARTISTS }, 
     sms: false,
     push: false,
   },
+  betaRulesAcceptedAt: null,
+  betaRulesVersion: null,
   createdAt: isoPlus(0, index),
 }));
 

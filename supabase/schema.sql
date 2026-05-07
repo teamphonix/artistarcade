@@ -8,6 +8,8 @@ create table if not exists protocol_artists (
   wallet_cents integer not null default 0,
   reward_cents integer not null default 0,
   notification_preferences jsonb not null default '{"inApp": true, "email": false, "sms": false, "push": false}'::jsonb,
+  beta_rules_accepted_at timestamptz,
+  beta_rules_version text,
   status text not null default 'registered'
     check (status in ('registered', 'queued', 'submitted', 'judging', 'advanced', 'eliminated', 'winner')),
   created_at timestamptz not null default now()
@@ -16,6 +18,12 @@ create table if not exists protocol_artists (
 alter table protocol_artists
   add column if not exists notification_preferences jsonb not null
   default '{"inApp": true, "email": false, "sms": false, "push": false}'::jsonb;
+
+alter table protocol_artists
+  add column if not exists beta_rules_accepted_at timestamptz;
+
+alter table protocol_artists
+  add column if not exists beta_rules_version text;
 
 create table if not exists protocol_events (
   id uuid primary key default gen_random_uuid(),

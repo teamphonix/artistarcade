@@ -11,6 +11,8 @@ type Artist = {
   walletCents: number;
   rewardCents: number;
   status: string;
+  betaRulesAcceptedAt?: string | null;
+  betaRulesVersion?: string | null;
 };
 
 type Entry = {
@@ -67,6 +69,7 @@ export default function ArtistEventsPortalPage() {
   const [isBusy, setIsBusy] = useState(false);
   const [selectedType, setSelectedType] = useState("rap");
   const [selectedEventId, setSelectedEventId] = useState("");
+  const [acceptBetaRules, setAcceptBetaRules] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -109,6 +112,7 @@ export default function ArtistEventsPortalPage() {
           action: "joinEvent",
           artistId,
           eventId,
+          acceptBetaRules,
         }),
       });
       const data = await response.json();
@@ -119,6 +123,7 @@ export default function ArtistEventsPortalPage() {
 
       setPayload(data);
       setSelectedEventId("");
+      setAcceptBetaRules(false);
       setMessage("Event joined. Your profile is now locked into that queue.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not join event.");
@@ -139,6 +144,7 @@ export default function ArtistEventsPortalPage() {
       (event) => event.eventType === selectedType && event.phase === "queue" && event.queuedCount < 16,
     ) || [];
   const selectedEvent = visibleEvents.find((event) => event.id === selectedEventId) || null;
+  const betaRulesAccepted = Boolean(artist?.betaRulesAcceptedAt);
 
   if (!payload || !artist) {
     return (
@@ -198,6 +204,7 @@ export default function ArtistEventsPortalPage() {
                 onClick={() => {
                   setSelectedType(type);
                   setSelectedEventId("");
+                  setAcceptBetaRules(false);
                 }}
                 type="button"
               >
@@ -223,7 +230,10 @@ export default function ArtistEventsPortalPage() {
                   className={selectedEventId === event.id ? "artist-event-tile is-active" : "artist-event-tile"}
                   disabled={!!currentEntry}
                   key={event.id}
-                  onClick={() => setSelectedEventId(event.id)}
+                  onClick={() => {
+                    setSelectedEventId(event.id);
+                    setAcceptBetaRules(false);
+                  }}
                   type="button"
                 >
                   <span>Prize</span>
@@ -255,8 +265,36 @@ export default function ArtistEventsPortalPage() {
                 {money(selectedEvent.desiredPrizeCents)}
               </span>
             </div>
+            <div className="beta-rules-card">
+              <strong>Beta event rules</strong>
+              <p>
+                Battle rap is competitive. Direct bars, punchlines, and talking trash about contenders are allowed.
+                Hate speech is not.
+              </p>
+              <ul>
+                <li>No racist hate speech or attacks against protected communities.</li>
+                <li>No threats against countries, communities, or real-world groups.</li>
+                <li>No credible threats of violence, doxxing, or instructions for harm.</li>
+                <li>Submissions must be original, under 3 minutes, and made for the posted challenge.</li>
+                <li>Entry is $1 for this beta event. Prize, deadlines, judging, and results are handled by the protocol.</li>
+                <li>Judging uses Lyrics 25%, Delivery 20%, Originality 20%, Flow 15%, Impact 20%.</li>
+              </ul>
+              <label>
+                <input
+                  checked={acceptBetaRules || betaRulesAccepted}
+                  disabled={betaRulesAccepted}
+                  onChange={(event) => setAcceptBetaRules(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>
+                  {betaRulesAccepted
+                    ? "Beta rules accepted for this profile."
+                    : "I understand and accept the beta rules for paid event entry."}
+                </span>
+              </label>
+            </div>
             <button
-              disabled={isBusy || !!currentEntry}
+              disabled={isBusy || !!currentEntry || (!acceptBetaRules && !betaRulesAccepted)}
               onClick={() => void joinEvent(selectedEvent.id)}
               type="button"
             >

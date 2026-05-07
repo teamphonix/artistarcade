@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   ARTISTS_PER_EVENT,
+  BETA_RULES_VERSION,
   JUDGING_WINDOW_MINUTES,
   SCORE_CATEGORIES,
   SUBMISSION_LIMIT_SECONDS,
@@ -621,8 +622,8 @@ function buildBetaReadiness(state: ProtocolState) {
     {
       id: "rules",
       label: "Beta rules and consent",
-      status: "blocked",
-      detail: "Artist-facing beta terms still need to be written and accepted before real money entry.",
+      status: "ready",
+      detail: `Paid event entry requires acceptance of beta rules version ${BETA_RULES_VERSION}.`,
     },
     {
       id: "reset",
@@ -681,6 +682,8 @@ function summarize(state: ProtocolState) {
     artists: state.artists.map((artist) => ({
       ...artist,
       notificationPreferences: artist.notificationPreferences || defaultNotificationPreferences(),
+      betaRulesAcceptedAt: artist.betaRulesAcceptedAt || null,
+      betaRulesVersion: artist.betaRulesVersion || null,
     })),
     events,
     submissions: state.submissions,
@@ -908,6 +911,8 @@ async function readSupabaseState() {
       rewardCents: artist.reward_cents,
       status: artist.status,
       notificationPreferences: artist.notification_preferences || defaultNotificationPreferences(),
+      betaRulesAcceptedAt: artist.beta_rules_accepted_at,
+      betaRulesVersion: artist.beta_rules_version,
       createdAt: artist.created_at,
     })),
     events: (eventsResult.data || []).map((event) => ({
@@ -1060,6 +1065,8 @@ async function writeSupabaseState(state: ProtocolState) {
       reward_cents: artist.rewardCents,
       status: artist.status,
       notification_preferences: artist.notificationPreferences || defaultNotificationPreferences(),
+      beta_rules_accepted_at: artist.betaRulesAcceptedAt || null,
+      beta_rules_version: artist.betaRulesVersion || null,
       created_at: artist.createdAt,
     })),
   );
@@ -1259,6 +1266,8 @@ export async function POST(request: Request) {
           rewardCents: 0,
           status: "registered",
           notificationPreferences: defaultNotificationPreferences(),
+          betaRulesAcceptedAt: null,
+          betaRulesVersion: null,
           createdAt: new Date().toISOString(),
         };
         state.artists.push(artist);
@@ -1309,6 +1318,8 @@ export async function POST(request: Request) {
           rewardCents: 0,
           status: "registered",
           notificationPreferences: defaultNotificationPreferences(),
+          betaRulesAcceptedAt: null,
+          betaRulesVersion: null,
           createdAt: new Date().toISOString(),
         };
         state.artists.push(artist);
@@ -1420,6 +1431,20 @@ export async function POST(request: Request) {
 
       if (artist.walletCents < event.entryFeeCents) {
         return NextResponse.json({ error: "Artist wallet does not have enough funds." }, { status: 409 });
+      }
+
+      if (artist.betaRulesVersion !== BETA_RULES_VERSION || !artist.betaRulesAcceptedAt) {
+        if (!body?.acceptBetaRules) {
+          return NextResponse.json({ error: "Accept the beta rules before joining a paid event." }, { status: 409 });
+        }
+
+        artist.betaRulesVersion = BETA_RULES_VERSION;
+        artist.betaRulesAcceptedAt = new Date().toISOString();
+        logProtocolEvent(state, "beta_rules_accepted", `${artist.name} accepted beta event rules.`, {
+          artistId: artist.id,
+          eventId,
+          metadata: { betaRulesVersion: BETA_RULES_VERSION },
+        });
       }
 
       artist.walletCents -= event.entryFeeCents;
