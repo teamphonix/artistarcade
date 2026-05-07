@@ -143,6 +143,16 @@ export default function ArtistResultsPage() {
   }, [artistId, eventRoom, payload]);
 
   const roundsJudged = payload?.judgments.filter((judgment) => judgment.judgeArtistId === artistId).length || 0;
+  const lossBattle =
+    artistBattles.find(
+      (battle) => battle.status === "complete" && !!battle.winnerArtistId && battle.winnerArtistId !== artistId,
+    ) || null;
+  const lossOpponentId = lossBattle
+    ? lossBattle.artistAId === artistId
+      ? lossBattle.artistBId
+      : lossBattle.artistAId
+    : "";
+  const lossOpponent = payload?.artists.find((entry) => entry.id === lossOpponentId) || null;
 
   if (!payload || !artist) {
     return (
@@ -217,6 +227,18 @@ export default function ArtistResultsPage() {
                   ? `Prize credited: ${money(artist.rewardCents)}`
                   : "Review each round below to see where your run ended."}
               </span>
+              {lossBattle ? (
+                <div className="artist-loss-review">
+                  <span>Loss review</span>
+                  <strong>
+                    Round {lossBattle.round} against {lossOpponent?.name || "opponent"}
+                  </strong>
+                  <p>
+                    Your run ended on this battle. The head-to-head tracks, decision, weighted total, and category gaps
+                    are saved below for review.
+                  </p>
+                </div>
+              ) : null}
             </div>
           ) : (
             <p>Join an event to unlock results tracking.</p>
@@ -243,9 +265,16 @@ export default function ArtistResultsPage() {
               const opponentScorecard = judgment?.contestantScores?.[opponentId];
               const artistTotal = weightedTotal(artistScorecard, payload.scoreCategories);
               const opponentTotal = weightedTotal(opponentScorecard, payload.scoreCategories);
+              const scoreDelta = artistTotal - opponentTotal;
+              const completedLoss = battle.status === "complete" && !!battle.winnerArtistId && !advanced;
+              const resultCardClass = advanced
+                ? "artist-result-card is-win"
+                : completedLoss
+                  ? "artist-result-card is-loss"
+                  : "artist-result-card";
 
               return (
-                <article className="artist-result-card" key={battle.id}>
+                <article className={resultCardClass} key={battle.id}>
                   <div className="artist-result-header">
                     <div>
                       <span>Round {battle.round}</span>
@@ -279,7 +308,7 @@ export default function ArtistResultsPage() {
                         ? `Decision went to ${payload.artists.find((entry) => entry.id === judgment.selectedWinnerArtistId)?.name || "winner"}`
                         : "Judgment still pending"}
                     </span>
-                    <strong>{advanced ? "You moved forward" : battle.status === "complete" ? "Your run ended here" : "Awaiting resolution"}</strong>
+                    <strong>{advanced ? "You moved forward" : completedLoss ? "Loss review ready" : "Awaiting resolution"}</strong>
                   </div>
                   {artistScorecard && opponentScorecard ? (
                     <div className="artist-result-scorecard">
@@ -290,6 +319,13 @@ export default function ArtistResultsPage() {
                       <div>
                         <span>{opponent?.name || "Opponent"} total</span>
                         <strong>{opponentTotal}</strong>
+                      </div>
+                      <div className={scoreDelta >= 0 ? "artist-score-delta is-positive" : "artist-score-delta is-negative"}>
+                        <span>{scoreDelta >= 0 ? "Score edge" : "Score gap"}</span>
+                        <strong>
+                          {scoreDelta > 0 ? "+" : ""}
+                          {scoreDelta}
+                        </strong>
                       </div>
                       {payload.scoreCategories.map((category) => (
                         <p key={category.key}>

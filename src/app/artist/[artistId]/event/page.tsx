@@ -313,6 +313,11 @@ export default function ArtistEventRoomPage() {
       }))
       .sort((a, b) => b.total - a.total)[0]?.artistId || "";
   }, [contestantScores, matchupArtists, scoreCategories]);
+  const battleHeadline =
+    matchupArtists.length === 2
+      ? `${matchupArtists[0].artist.name} vs ${matchupArtists[1].artist.name}`
+      : "Matchup pending";
+  const scoreLeader = matchupArtists.find(({ artist: contender }) => contender.id === winningScoreArtistId)?.artist.name || "TBD";
 
   async function handleJudgeSubmission() {
     const selectedByScore = winningScoreArtistId || selectedWinnerId;
@@ -520,18 +525,36 @@ export default function ArtistEventRoomPage() {
                       The clock started when this wave was distributed. Listen to both tracks all the way through once,
                       then score both contenders across the weighted judging attributes.
                     </p>
+                    <div className="judge-battle-header">
+                      <div>
+                        <span>Battle card</span>
+                        <strong>{battleHeadline}</strong>
+                      </div>
+                      <div className="judge-battle-meta">
+                        <span>Round {battle.round}</span>
+                        <span>{judgingEvent?.challengeTitle || "Challenge active"}</span>
+                        <span>{playbackUnlocked ? `Leader: ${scoreLeader}` : "Full listens required"}</span>
+                      </div>
+                    </div>
                     <div className="judge-playback-grid">
-                      {matchupArtists.map(({ artist: competitor, submission: matchupSubmission }) => {
+                      {matchupArtists.map(({ artist: competitor, submission: matchupSubmission }, index) => {
                         const heardOnce = !!heardFullTrack[matchupSubmission.id];
                         const isSelected = winningScoreArtistId === competitor.id;
                         const isPlaying = playingSubmissionId === matchupSubmission.id;
                         const scorecard = contestantScores[competitor.id] || defaultScorecard(scoreCategories);
 
                         return (
-                          <article className="judge-playback-card" key={matchupSubmission.id}>
-                            <span>Submission</span>
+                          <article className={isSelected ? "judge-playback-card is-leading" : "judge-playback-card"} key={matchupSubmission.id}>
+                            <div className="judge-card-topline">
+                              <span>Contender {index + 1}</span>
+                              <em>{isSelected ? "Current leader" : "Scorecard"}</em>
+                            </div>
                             <strong>{competitor.name}</strong>
                             <em>{matchupSubmission.title}</em>
+                            <div className="judge-card-meta">
+                              <span>Submission</span>
+                              <span>{matchupSubmission.durationSeconds}s</span>
+                            </div>
                             <small>
                               {heardOnce
                                 ? "Full listen completed. Advanced playback unlocked."
@@ -601,7 +624,7 @@ export default function ArtistEventRoomPage() {
                     <div className="judge-status-strip">
                       <span>
                         {playbackUnlocked
-                          ? `Scorecard unlocked. Leader: ${matchupArtists.find(({ artist: contender }) => contender.id === winningScoreArtistId)?.artist.name || "TBD"}`
+                          ? `Scorecard unlocked. Leader: ${scoreLeader}`
                           : "Both tracks must finish once"}
                       </span>
                       <strong>{assignmentExpired ? "Judging window expired" : `Time left ${countdownLabel}`}</strong>

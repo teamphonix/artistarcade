@@ -2777,6 +2777,65 @@ button {
   padding: 1rem;
 }
 
+.judge-playback-card.is-leading {
+  border-color: rgba(255, 224, 154, 0.68);
+  box-shadow: 0 0 24px rgba(255, 205, 91, 0.14);
+}
+
+.judge-battle-header {
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 205, 91, 0.2);
+  display: grid;
+  gap: 0.85rem;
+  margin: 1rem 0;
+  padding: 1rem;
+}
+
+.judge-battle-header > div:first-child {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.judge-battle-header span,
+.judge-card-topline span,
+.judge-card-topline em,
+.judge-card-meta span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.judge-battle-header strong {
+  color: var(--gold-bright);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  line-height: 1;
+}
+
+.judge-battle-meta,
+.judge-card-topline,
+.judge-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.judge-battle-meta span,
+.judge-card-meta span,
+.judge-card-topline em {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 205, 91, 0.16);
+  padding: 0.42rem 0.55rem;
+}
+
+.judge-card-topline {
+  align-items: center;
+  justify-content: space-between;
+}
+
 .judge-audio-gate {
   display: grid;
   gap: 0.5rem;
@@ -4434,11 +4493,56 @@ button.artist-room-link.secondary {
   padding: 0.85rem;
 }
 
+.artist-result-card.is-win {
+  border-color: rgba(85, 195, 126, 0.42);
+}
+
+.artist-result-card.is-loss {
+  border-color: rgba(238, 111, 111, 0.48);
+}
+
+.artist-loss-review {
+  background: #151922;
+  border: 1px solid #303846;
+  border-left: 4px solid #ee6f6f;
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+  padding: 0.9rem;
+}
+
+.artist-loss-review p {
+  color: #c0c6d0;
+  line-height: 1.55;
+  margin: 0;
+}
+
 .artist-result-scorecard > div {
   background: #151922;
   border: 1px solid #252b36;
   border-radius: 0.6rem;
   padding: 0.75rem;
+}
+
+.artist-result-scorecard > .artist-score-delta {
+  grid-column: 1 / -1;
+}
+
+.artist-score-delta.is-positive {
+  border-color: rgba(85, 195, 126, 0.4);
+}
+
+.artist-score-delta.is-negative {
+  border-color: rgba(238, 111, 111, 0.48);
+}
+
+.artist-result-scorecard > .artist-score-delta.is-positive strong {
+  color: #71d59a;
+}
+
+.artist-result-scorecard > .artist-score-delta.is-negative strong {
+  color: #ee6f6f;
 }
 
 .artist-result-scorecard span {
