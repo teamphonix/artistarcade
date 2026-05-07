@@ -550,6 +550,105 @@ function buildNotifications(state: ProtocolState) {
   return notifications.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+function buildBetaReadiness(state: ProtocolState) {
+  const usesSupabase = Boolean(getSupabaseAdmin());
+  const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
+  const storageConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SUBMISSIONS_BUCKET);
+  const cronConfigured = Boolean(process.env.CRON_SECRET);
+  const hasEvents = state.events.length >= 4;
+  const hasScoring = SCORE_CATEGORIES.reduce((sum, category) => sum + category.weight, 0) === 100;
+  const hasAuditTrail = Array.isArray(state.auditLog);
+  const hasNotifications = true;
+  const resetIsPublic = process.env.NODE_ENV !== "production";
+  const completedDryRun = state.events.some(
+    (event) =>
+      event.phase === "complete" &&
+      event.winnerArtistId &&
+      state.walletLedger.some((entry) => entry.eventId === event.id && entry.type === "prize"),
+  );
+
+  const checks = [
+    {
+      id: "database",
+      label: "Production database",
+      status: usesSupabase ? "ready" : "blocked",
+      detail: usesSupabase ? "Supabase service role is connected." : "Still running on local file state. Connect Supabase before real beta.",
+    },
+    {
+      id: "payments",
+      label: "Payment rails",
+      status: stripeConfigured ? "ready" : "blocked",
+      detail: stripeConfigured ? "Stripe secret and webhook are configured." : "Stripe keys are missing. Wallet deposits are still simulated.",
+    },
+    {
+      id: "storage",
+      label: "Submission storage",
+      status: storageConfigured ? "ready" : "blocked",
+      detail: storageConfigured ? "Supabase upload storage is configured." : "Submission uploads need production storage before real artists.",
+    },
+    {
+      id: "events",
+      label: "Pilot events",
+      status: hasEvents ? "ready" : "blocked",
+      detail: hasEvents ? `${state.events.length} pilot events are available.` : "Seed the beta events before launch.",
+    },
+    {
+      id: "scoring",
+      label: "Weighted judging",
+      status: hasScoring ? "ready" : "blocked",
+      detail: hasScoring ? "Five-category judging weights total 100%." : "Judging category weights must total 100%.",
+    },
+    {
+      id: "notifications",
+      label: "Notifications",
+      status: hasNotifications ? "warning" : "blocked",
+      detail: hasNotifications
+        ? "In-app alerts and saved preferences are live. Email/SMS/push routing still needs providers."
+        : "Protocol alerts are not available.",
+    },
+    {
+      id: "automation",
+      label: "Autonomous tick",
+      status: cronConfigured ? "ready" : "warning",
+      detail: cronConfigured ? "Cron secret is configured for protected protocol ticks." : "Cron secret is missing. Manual/API ticks may still work.",
+    },
+    {
+      id: "audit",
+      label: "Audit trail",
+      status: hasAuditTrail ? "ready" : "blocked",
+      detail: hasAuditTrail ? "Protocol actions write to an audit trail." : "Audit trail is unavailable.",
+    },
+    {
+      id: "rules",
+      label: "Beta rules and consent",
+      status: "blocked",
+      detail: "Artist-facing beta terms still need to be written and accepted before real money entry.",
+    },
+    {
+      id: "reset",
+      label: "Reset protection",
+      status: resetIsPublic ? "warning" : "ready",
+      detail: resetIsPublic ? "Reset exists for local/demo use. Protect or hide it in production." : "Production mode removes the local reset risk.",
+    },
+    {
+      id: "dry-run",
+      label: "End-to-end dry run",
+      status: completedDryRun ? "ready" : "warning",
+      detail: completedDryRun ? "At least one event completed with a prize ledger." : "Run one complete 16-artist production-style test before invites.",
+    },
+  ] as const;
+  const blocked = checks.filter((check) => check.status === "blocked").length;
+  const warning = checks.filter((check) => check.status === "warning").length;
+
+  return {
+    overall: blocked > 0 ? "blocked" : warning > 0 ? "warning" : "ready",
+    blocked,
+    warning,
+    ready: checks.filter((check) => check.status === "ready").length,
+    checks,
+  };
+}
+
 function summarize(state: ProtocolState) {
   const events = state.events.map((event) => {
     const entries = getEventEntries(state, event.id);
@@ -590,6 +689,7 @@ function summarize(state: ProtocolState) {
     judgments: state.judgments,
     walletLedger: state.walletLedger,
     notifications: buildNotifications(state),
+    betaReadiness: buildBetaReadiness(state),
     auditLog: [...(state.auditLog || [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100),
     scoredBattles,
     scoreCategories: SCORE_CATEGORIES,

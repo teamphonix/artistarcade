@@ -78,12 +78,26 @@ type Notification = {
   createdAt: string;
 };
 
+type BetaReadiness = {
+  overall: "ready" | "warning" | "blocked";
+  ready: number;
+  warning: number;
+  blocked: number;
+  checks: Array<{
+    id: string;
+    label: string;
+    status: "ready" | "warning" | "blocked";
+    detail: string;
+  }>;
+};
+
 type ProtocolPayload = {
   backend: "local" | "supabase";
   artists: Artist[];
   events: EventSummary[];
   auditLog: AuditEntry[];
   notifications: Notification[];
+  betaReadiness: BetaReadiness;
   totals: {
     artists: number;
     entries: number;
@@ -289,6 +303,7 @@ export default function HostPage() {
   const hostNotifications =
     payload?.notifications.filter((notification) => notification.audience === "host") || [];
   const actionNotifications = hostNotifications.filter((notification) => notification.level === "action").length;
+  const readiness = payload?.betaReadiness || null;
 
   async function postProtocol(action: string, body = {}) {
     setIsBusy(true);
@@ -449,6 +464,38 @@ export default function HostPage() {
         </div>
         <strong>{actionNotifications} actions</strong>
       </section>
+
+      {readiness ? (
+        <section className={`pilot-panel beta-readiness-panel is-${readiness.overall}`}>
+          <header>
+            <div>
+              <span className="pilot-kicker">Beta Launch Readiness</span>
+              <h2>{readiness.overall === "ready" ? "Ready to invite" : readiness.overall === "warning" ? "Almost there" : "Not ready yet"}</h2>
+              <p>
+                Launch gates for the official pilot. Green can ship, yellow needs a decision, red blocks real artists
+                and real money.
+              </p>
+            </div>
+            <aside>
+              <strong>{readiness.ready}</strong>
+              <span>ready</span>
+              <strong>{readiness.warning}</strong>
+              <span>watch</span>
+              <strong>{readiness.blocked}</strong>
+              <span>blocked</span>
+            </aside>
+          </header>
+          <div className="beta-readiness-grid">
+            {readiness.checks.map((check) => (
+              <article className={`beta-readiness-card is-${check.status}`} key={check.id}>
+                <span>{check.status}</span>
+                <strong>{check.label}</strong>
+                <p>{check.detail}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="pilot-tabs" aria-label="Host events">
         {payload.events.map((event) => (

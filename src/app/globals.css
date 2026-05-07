@@ -4164,6 +4164,99 @@ button.artist-room-link.secondary {
   margin: 0 auto 1rem;
 }
 
+.beta-readiness-panel {
+  display: grid;
+  gap: 1rem;
+  margin: 0 auto 1rem;
+  max-width: 76rem;
+}
+
+.beta-readiness-panel header {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.beta-readiness-panel h2 {
+  color: #f8f3e6;
+  font-size: 1.35rem;
+  margin: 0.2rem 0 0.35rem;
+}
+
+.beta-readiness-panel p {
+  color: #aeb6c2;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.beta-readiness-panel aside {
+  background: #10141b;
+  border: 1px solid #252b36;
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.2rem 0.65rem;
+  grid-template-columns: auto auto;
+  padding: 0.85rem;
+}
+
+.beta-readiness-panel aside strong {
+  color: #f8f3e6;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.beta-readiness-panel aside span {
+  color: #8f98a6;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.beta-readiness-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.beta-readiness-card {
+  background: #10141b;
+  border: 1px solid #252b36;
+  border-left: 4px solid #8f98a6;
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem;
+}
+
+.beta-readiness-card.is-ready {
+  border-left-color: #71d59a;
+}
+
+.beta-readiness-card.is-warning {
+  border-left-color: #f0c96a;
+}
+
+.beta-readiness-card.is-blocked {
+  border-left-color: #ee6f6f;
+}
+
+.beta-readiness-card span {
+  color: #8f98a6;
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.beta-readiness-card strong {
+  color: #f8f3e6;
+}
+
+.beta-readiness-card p {
+  color: #aeb6c2;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
 .pilot-notification-panel h2,
 .artist-next-step h2 {
   color: #f8f3e6;
@@ -4391,6 +4484,8 @@ button.artist-room-link.secondary {
 
   .pilot-notification-panel,
   .artist-next-step,
+  .beta-readiness-panel header,
+  .beta-readiness-grid,
   .protocol-notification,
   .artist-result-scorecard,
   .notification-preference-list label {
