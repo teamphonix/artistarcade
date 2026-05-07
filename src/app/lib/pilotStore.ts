@@ -31,6 +31,12 @@ export type ProtocolArtist = {
   walletCents: number;
   rewardCents: number;
   status: ArtistStatus;
+  notificationPreferences?: {
+    inApp: boolean;
+    email: boolean;
+    sms: boolean;
+    push: boolean;
+  };
   createdAt: string;
 };
 
@@ -176,6 +182,12 @@ const seedArtists: ProtocolArtist[] = Array.from({ length: TOTAL_MVP_ARTISTS }, 
   walletCents: 100,
   rewardCents: 0,
   status: "registered",
+  notificationPreferences: {
+    inApp: true,
+    email: false,
+    sms: false,
+    push: false,
+  },
   createdAt: isoPlus(0, index),
 }));
 

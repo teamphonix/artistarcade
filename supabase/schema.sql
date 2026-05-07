@@ -7,10 +7,15 @@ create table if not exists protocol_artists (
   stripe_customer_id text,
   wallet_cents integer not null default 0,
   reward_cents integer not null default 0,
+  notification_preferences jsonb not null default '{"inApp": true, "email": false, "sms": false, "push": false}'::jsonb,
   status text not null default 'registered'
     check (status in ('registered', 'queued', 'submitted', 'judging', 'advanced', 'eliminated', 'winner')),
   created_at timestamptz not null default now()
 );
+
+alter table protocol_artists
+  add column if not exists notification_preferences jsonb not null
+  default '{"inApp": true, "email": false, "sms": false, "push": false}'::jsonb;
 
 create table if not exists protocol_events (
   id uuid primary key default gen_random_uuid(),

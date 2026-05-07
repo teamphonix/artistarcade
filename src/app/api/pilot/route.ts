@@ -26,6 +26,7 @@ import { isValidEmail } from "@/app/lib/protocol";
 
 type ProtocolAction =
   | "upsertArtist"
+  | "updateNotificationPreferences"
   | "updateEvent"
   | "deposit"
   | "withdraw"
@@ -56,6 +57,15 @@ function shuffle<T>(items: T[]) {
     [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
   }
   return next;
+}
+
+function defaultNotificationPreferences() {
+  return {
+    inApp: true,
+    email: false,
+    sms: false,
+    push: false,
+  };
 }
 
 function ensureAuditLog(state: ProtocolState) {
@@ -569,7 +579,10 @@ function summarize(state: ProtocolState) {
 
   return {
     settings: state.settings,
-    artists: state.artists,
+    artists: state.artists.map((artist) => ({
+      ...artist,
+      notificationPreferences: artist.notificationPreferences || defaultNotificationPreferences(),
+    })),
     events,
     submissions: state.submissions,
     battles: state.battles,
@@ -794,6 +807,7 @@ async function readSupabaseState() {
       walletCents: artist.wallet_cents,
       rewardCents: artist.reward_cents,
       status: artist.status,
+      notificationPreferences: artist.notification_preferences || defaultNotificationPreferences(),
       createdAt: artist.created_at,
     })),
     events: (eventsResult.data || []).map((event) => ({
@@ -945,6 +959,7 @@ async function writeSupabaseState(state: ProtocolState) {
       wallet_cents: artist.walletCents,
       reward_cents: artist.rewardCents,
       status: artist.status,
+      notification_preferences: artist.notificationPreferences || defaultNotificationPreferences(),
       created_at: artist.createdAt,
     })),
   );
@@ -1143,6 +1158,7 @@ export async function POST(request: Request) {
           walletCents: 0,
           rewardCents: 0,
           status: "registered",
+          notificationPreferences: defaultNotificationPreferences(),
           createdAt: new Date().toISOString(),
         };
         state.artists.push(artist);
@@ -1152,6 +1168,26 @@ export async function POST(request: Request) {
       } else {
         artist.name = name;
       }
+    }
+
+    if (action === "updateNotificationPreferences") {
+      const artistId = String(body?.artistId || "");
+      const artist = state.artists.find((entry) => entry.id === artistId);
+
+      if (!artist) {
+        return NextResponse.json({ error: "Artist is required." }, { status: 400 });
+      }
+
+      artist.notificationPreferences = {
+        inApp: true,
+        email: Boolean(body?.email),
+        sms: Boolean(body?.sms),
+        push: Boolean(body?.push),
+      };
+      logProtocolEvent(state, "notification_preferences_updated", `${artist.name} updated notification preferences.`, {
+        artistId: artist.id,
+        metadata: artist.notificationPreferences,
+      });
     }
 
     if (action === "deposit") {
@@ -1172,6 +1208,7 @@ export async function POST(request: Request) {
           walletCents: 0,
           rewardCents: 0,
           status: "registered",
+          notificationPreferences: defaultNotificationPreferences(),
           createdAt: new Date().toISOString(),
         };
         state.artists.push(artist);

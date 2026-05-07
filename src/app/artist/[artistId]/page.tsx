@@ -11,6 +11,12 @@ type Artist = {
   walletCents: number;
   rewardCents: number;
   status: string;
+  notificationPreferences?: {
+    inApp: boolean;
+    email: boolean;
+    sms: boolean;
+    push: boolean;
+  };
 };
 
 type Entry = {
@@ -200,6 +206,12 @@ export default function ArtistDashboardPage() {
   const artistAssignment = payload?.assignments.find(
     (assignment) => assignment.judgeArtistId === artistId && assignment.status === "assigned",
   );
+  const notificationPreferences = artist?.notificationPreferences || {
+    inApp: true,
+    email: false,
+    sms: false,
+    push: false,
+  };
   const artistNotifications =
     payload?.notifications.filter((notification) => notification.audience === "artist" && notification.artistId === artistId) ||
     [];
@@ -352,6 +364,48 @@ export default function ArtistDashboardPage() {
               </button>
             </div>
           </article>
+
+          <form
+            className="artist-dashboard-panel"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const formData = new FormData(event.currentTarget);
+              void postProtocol("updateNotificationPreferences", {
+                artistId: artist.id,
+                email: formData.get("email") === "on",
+                sms: formData.get("sms") === "on",
+                push: formData.get("push") === "on",
+              });
+            }}
+          >
+            <h2>Notifications</h2>
+            <p>In-app alerts are always on. External channels are saved here now and can route live when providers connect.</p>
+            <div className="notification-preference-list">
+              <label>
+                <input checked disabled name="inApp" type="checkbox" />
+                <span>In-app</span>
+                <em>Active</em>
+              </label>
+              <label>
+                <input defaultChecked={notificationPreferences.email} name="email" type="checkbox" />
+                <span>Email</span>
+                <em>Ready for routing</em>
+              </label>
+              <label>
+                <input defaultChecked={notificationPreferences.sms} name="sms" type="checkbox" />
+                <span>SMS</span>
+                <em>Provider pending</em>
+              </label>
+              <label>
+                <input defaultChecked={notificationPreferences.push} name="push" type="checkbox" />
+                <span>Push</span>
+                <em>App install pending</em>
+              </label>
+            </div>
+            <button disabled={isBusy} type="submit">
+              Save preferences
+            </button>
+          </form>
         </section>
 
         <section className="artist-dashboard-panel artist-dashboard-panel-wide">
