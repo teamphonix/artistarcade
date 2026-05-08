@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 type Artist = {
   id: string;
   name: string;
+  betaRulesAcceptedAt?: string | null;
   walletCents: number;
   rewardCents: number;
   status: string;
@@ -31,6 +32,36 @@ type Battle = {
   artistBId: string;
   status: string;
   winnerArtistId: string | null;
+};
+
+type Assignment = {
+  id: string;
+  battleId: string;
+  judgeArtistId: string;
+  status: string;
+  assignedAt: string;
+  dueAt: string | null;
+  completedAt: string | null;
+};
+
+type Submission = {
+  id: string;
+  eventId: string;
+  artistId: string;
+  round: number;
+  title: string;
+  audioUrl: string;
+  durationSeconds: number;
+  submittedAt: string;
+};
+
+type Judgment = {
+  id: string;
+  assignmentId: string;
+  battleId: string;
+  judgeArtistId: string;
+  selectedWinnerArtistId: string;
+  createdAt: string;
 };
 
 type EventSummary = {
@@ -95,6 +126,9 @@ type ProtocolPayload = {
   backend: "local" | "supabase";
   artists: Artist[];
   events: EventSummary[];
+  submissions: Submission[];
+  assignments: Assignment[];
+  judgments: Judgment[];
   auditLog: AuditEntry[];
   notifications: Notification[];
   betaReadiness: BetaReadiness;
@@ -156,6 +190,22 @@ function relativeCountdown(date: string | null) {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return `${hours}h ${rest}m`;
+}
+
+function statusTone(status: string) {
+  if (["complete", "completed", "winner", "ready"].includes(status)) {
+    return "is-success";
+  }
+
+  if (["judging", "assigned", "action", "warning"].includes(status)) {
+    return "is-action";
+  }
+
+  if (["expired", "eliminated", "blocked"].includes(status)) {
+    return "is-warning";
+  }
+
+  return "is-info";
 }
 
 function formatEastern(date: string | null) {
@@ -304,6 +354,22 @@ export default function HostPage() {
     payload?.notifications.filter((notification) => notification.audience === "host") || [];
   const actionNotifications = hostNotifications.filter((notification) => notification.level === "action").length;
   const readiness = payload?.betaReadiness || null;
+  const selectedEventSubmissions =
+    payload?.submissions
+      .filter((submission) => submission.eventId === selectedEvent?.id)
+      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)) || [];
+  const selectedEventAssignments =
+    payload?.assignments
+      .filter((assignment) => selectedEvent?.battles.some((battle) => battle.id === assignment.battleId))
+      .sort((a, b) => b.assignedAt.localeCompare(a.assignedAt)) || [];
+  const openAssignments = selectedEventAssignments.filter((assignment) => assignment.status === "assigned");
+  const selectedJudgments =
+    payload?.judgments.filter((judgment) =>
+      selectedEvent?.battles.some((battle) => battle.id === judgment.battleId),
+    ) || [];
+  const artistsNeedingFunds = payload?.artists.filter((artist) => artist.walletCents < 100).length || 0;
+  const activeArtistsMissingRules =
+    payload?.artists.filter((artist) => artist.status !== "registered" && !artist.betaRulesAcceptedAt).length || 0;
 
   async function postProtocol(action: string, body = {}) {
     setIsBusy(true);
@@ -325,6 +391,34 @@ export default function HostPage() {
       setMessage("Host control room updated.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Host action failed.");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function runProtocolTick() {
+    setIsBusy(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/protocol/tick", { cache: "no-store" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Protocol tick failed.");
+      }
+
+      const nextResponse = await fetch("/api/pilot", { cache: "no-store" });
+      const nextPayload = await nextResponse.json();
+
+      if (!nextResponse.ok) {
+        throw new Error(nextPayload.error || "Protocol refresh failed.");
+      }
+
+      syncPayload(nextPayload);
+      setMessage(`Protocol tick completed at ${shortTime(data.tickedAt)}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Protocol tick failed.");
     } finally {
       setIsBusy(false);
     }
@@ -451,6 +545,10 @@ export default function HostPage() {
         <article>
           <span>Revenue</span>
           <strong>{money(payload.totals.companyRevenueCents)}</strong>
+        </article>
+        <article>
+          <span>Open cards</span>
+          <strong>{openAssignments.length}</strong>
         </article>
       </section>
 
@@ -602,6 +700,9 @@ export default function HostPage() {
           >
             Lock queue and start submission clock
           </button>
+          <button disabled={isBusy} onClick={() => void runProtocolTick()} type="button">
+            Run protocol tick
+          </button>
           <button
             disabled={isBusy || selectedEvent.phase === "queue"}
             onClick={() => void postProtocol("generateJudgeAssignments", { eventId: selectedEvent.id })}
@@ -619,6 +720,21 @@ export default function HostPage() {
           <button disabled={isBusy} onClick={() => void postProtocol("reset")} type="button">
             Reset pilot
           </button>
+        </article>
+
+        <article className="pilot-panel">
+          <h2>Beta watchlist</h2>
+          <div className="protocol-summary">
+            <span>Open assignments: {openAssignments.length}</span>
+            <span>Event submissions: {selectedEventSubmissions.length}</span>
+            <span>Judgments recorded: {selectedJudgments.length}</span>
+            <span>Artists below $1: {artistsNeedingFunds}</span>
+            <span>Entrants missing rules: {activeArtistsMissingRules}</span>
+          </div>
+          <p>
+            Quick scan for the pilot. If anything stalls, the ledgers and audit trail below show where the protocol
+            stopped.
+          </p>
         </article>
 
         <article className="pilot-panel">
@@ -665,16 +781,96 @@ export default function HostPage() {
         <article className="pilot-panel pilot-panel-wide">
           <h2>Round battles</h2>
           <div className="pilot-table">
-            {selectedEvent.battles.map((battle) => (
-              <div className="pilot-row" key={battle.id}>
-                <strong>
-                  R{battle.round}.{battle.slot}
-                </strong>
-                <span>
-                  {artistMap.get(battle.artistAId)?.name} vs {artistMap.get(battle.artistBId)?.name}
-                </span>
-                <span>{battle.status}</span>
-                <span>{battle.winnerArtistId ? artistMap.get(battle.winnerArtistId)?.name : "TBD"}</span>
+            {selectedEvent.battles.length > 0 ? (
+              selectedEvent.battles.map((battle) => (
+                <div className="pilot-row" key={battle.id}>
+                  <strong>
+                    R{battle.round}.{battle.slot}
+                  </strong>
+                  <span>
+                    {artistMap.get(battle.artistAId)?.name} vs {artistMap.get(battle.artistBId)?.name}
+                  </span>
+                  <span className={`operator-pill ${statusTone(battle.status)}`}>{battle.status}</span>
+                  <span>{battle.winnerArtistId ? artistMap.get(battle.winnerArtistId)?.name : "TBD"}</span>
+                </div>
+              ))
+            ) : (
+              <div className="artist-empty-state">
+                <strong>No battles generated yet</strong>
+                <span>Battles appear after the 16-artist queue locks.</span>
+              </div>
+            )}
+          </div>
+        </article>
+
+        <article className="pilot-panel pilot-panel-wide">
+          <h2>Submission ledger</h2>
+          <div className="pilot-table">
+            {selectedEventSubmissions.length > 0 ? (
+              selectedEventSubmissions.map((submission) => (
+                <div className="pilot-row pilot-row-wide" key={submission.id}>
+                  <strong>{artistMap.get(submission.artistId)?.name || "Artist"}</strong>
+                  <span>Round {submission.round}</span>
+                  <span>{submission.title}</span>
+                  <span>{submission.durationSeconds}s</span>
+                  <span>{shortTime(submission.submittedAt)}</span>
+                </div>
+              ))
+            ) : (
+              <div className="artist-empty-state">
+                <strong>No submissions yet</strong>
+                <span>When artists upload tracks, this ledger becomes the operator view of the round.</span>
+              </div>
+            )}
+          </div>
+        </article>
+
+        <article className="pilot-panel pilot-panel-wide">
+          <h2>Judging assignment ledger</h2>
+          <div className="pilot-table">
+            {selectedEventAssignments.length > 0 ? (
+              selectedEventAssignments.map((assignment) => {
+                const assignmentBattle = selectedEvent.battles.find((battle) => battle.id === assignment.battleId);
+                const judgment = payload.judgments.find((entry) => entry.assignmentId === assignment.id) || null;
+
+                return (
+                  <div className="pilot-row pilot-row-wide" key={assignment.id}>
+                    <strong>{artistMap.get(assignment.judgeArtistId)?.name || "Judge"}</strong>
+                    <span>
+                      {assignmentBattle ? `R${assignmentBattle.round}.${assignmentBattle.slot}` : "Battle pending"}
+                    </span>
+                    <span className={`operator-pill ${statusTone(assignment.status)}`}>{assignment.status}</span>
+                    <span>{assignment.dueAt ? `Due ${relativeCountdown(assignment.dueAt)}` : "No due time"}</span>
+                    <span>
+                      {judgment
+                        ? `Picked ${artistMap.get(judgment.selectedWinnerArtistId)?.name || "winner"}`
+                        : "No judgment yet"}
+                    </span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="artist-empty-state">
+                <strong>No judging cards yet</strong>
+                <span>Cards appear after active artists submit and the judging wave is distributed.</span>
+              </div>
+            )}
+          </div>
+        </article>
+
+        <article className="pilot-panel pilot-panel-wide">
+          <h2>Artist roster</h2>
+          <div className="pilot-table">
+            {payload.artists.slice(0, 24).map((artist) => (
+              <div className="pilot-row pilot-row-roster" key={artist.id}>
+                <strong>{artist.name}</strong>
+                <span className={`operator-pill ${statusTone(artist.status)}`}>{artist.status}</span>
+                <span>Wallet {money(artist.walletCents)}</span>
+                <span>Rewards {money(artist.rewardCents)}</span>
+                <span>{artist.betaRulesAcceptedAt ? "Rules accepted" : "Rules pending"}</span>
+                <Link className="artist-room-link secondary" href={`/artist/${artist.id}`}>
+                  View
+                </Link>
               </div>
             ))}
           </div>

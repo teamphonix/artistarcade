@@ -2249,6 +2249,14 @@ button {
   color: var(--gold-bright);
 }
 
+.pilot-row.pilot-row-wide {
+  grid-template-columns: minmax(10rem, 1fr) repeat(4, minmax(7rem, auto));
+}
+
+.pilot-row.pilot-row-roster {
+  grid-template-columns: minmax(10rem, 1fr) repeat(4, minmax(7rem, auto)) auto;
+}
+
 .pilot-row span,
 .pilot-assignment span,
 .pilot-assignment em {
@@ -2258,6 +2266,45 @@ button {
 
 .pilot-panel-wide {
   grid-column: 1 / -1;
+}
+
+.operator-pill {
+  border-radius: 999px;
+  display: inline-flex;
+  justify-content: center;
+  max-width: max-content;
+  padding: 0.25rem 0.55rem;
+}
+
+.operator-pill.is-success {
+  background: rgba(113, 213, 154, 0.12);
+  border: 1px solid rgba(113, 213, 154, 0.28);
+  color: #71d59a;
+}
+
+.operator-pill.is-action {
+  background: rgba(240, 201, 106, 0.12);
+  border: 1px solid rgba(240, 201, 106, 0.28);
+  color: #f0c96a;
+}
+
+.operator-pill.is-warning {
+  background: rgba(238, 111, 111, 0.12);
+  border: 1px solid rgba(238, 111, 111, 0.28);
+  color: #ee6f6f;
+}
+
+.operator-pill.is-info {
+  background: rgba(143, 152, 166, 0.12);
+  border: 1px solid rgba(143, 152, 166, 0.24);
+  color: #aeb6c2;
+}
+
+@media (max-width: 760px) {
+  .pilot-row.pilot-row-wide,
+  .pilot-row.pilot-row-roster {
+    grid-template-columns: 1fr;
+  }
 }
 
 .artist-card,
