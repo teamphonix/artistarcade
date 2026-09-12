@@ -1,22 +1,50 @@
 # Artist Arcade MVP Setup
 
-This pilot now models the Artist Arcade battle protocol:
+> Product behavior and terminology are governed by [`PRODUCT-BIBLE.md`](PRODUCT-BIBLE.md). This file documents the current technical pilot configuration.
 
-- 64 total MVP artists.
-- 4 parallel events.
-- 16 artists per event.
+## Season Zero Structure
+
+The pilot models the Artist Arcade battle protocol with four simultaneous event pools so artists competing in one event can serve as eligible FateKeepers for the other event pools.
+
+- **64 total MVP artists.**
+- **4 parallel events.**
+- **16 artists per event.**
+- Each artist competes in one event and is eligible for judging assignments from the other three event pools.
 - Single-elimination bracket per event.
 - 4 rounds per event: 16 -> 8 -> 4 -> 2 -> 1 winner.
 - 15 battles per full event bracket, 60 total battles across the 4-event MVP.
 - For the pilot, each artist pays $1 to enter.
 - For the pilot, the winner receives $5.
-- The remaining event pot becomes company revenue.
+- The remaining event pot becomes company revenue before payment/operating costs.
 - Submissions must be 3 minutes or less.
 - Artists have 24 hours to submit after a queue closes.
-- Judges have a 15-minute timer after opening an assignment.
-- Judges must come from outside the event they are judging.
-- Judges cannot judge any battle involving their own submission.
-- Scores use five weighted categories: Lyrics 25%, Delivery 20%, Originality 20%, Flow 15%, Impact 20%.
+- FateKeepers have a 15-minute timer after opening an assignment.
+- FateKeepers must come from outside the event they are judging.
+- FateKeepers cannot judge any battle involving their own submission.
+- Current implementation uses one FateKeeper per battle.
+
+## Mandatory Judging
+
+Judging is a condition of participation, not an optional side activity.
+
+- Artists must complete required FateKeeper assignments within the allotted time.
+- Failure to complete a required judgment can automatically eliminate the non-compliant artist from their own active competition path.
+- Expired assignments must never deadlock the tournament; the protocol uses its timeout/fallback resolution so the affected battle/event can continue.
+- Timeout and elimination actions should be recorded in the protocol audit trail.
+
+See the Product Bible for the full blind-progression, battle-perspective, training, rank, and future experience rules.
+
+## Current Scoring Rubric
+
+The implemented MVP scoring categories are:
+
+- Lyrics: 25%
+- Delivery: 20%
+- Originality: 20%
+- Flow: 15%
+- Impact: 20%
+
+Future challenge-specific rubrics require explicit product approval and testing.
 
 ## Supabase
 
@@ -29,7 +57,7 @@ This pilot now models the Artist Arcade battle protocol:
 
 The app uses server routes for database writes, so the service role key must stay server-side and must never be exposed in browser code.
 
-The `/arena` protocol route now uses Supabase in production when the env vars are present, and falls back to local demo state only when Supabase is not configured. Submission uploads use a Supabase Storage bucket named `submissions` by default and will auto-create it when the upload route runs with a service role key.
+The `/arena` protocol route uses Supabase in production when the env vars are present and falls back to local demo state only when Supabase is not configured. Submission uploads use a Supabase Storage bucket named `submissions` by default and will auto-create it when the upload route runs with a service role key.
 
 ## Stripe
 
