@@ -1,8 +1,28 @@
 # Autonomous Protocol Notes
 
-> Product behavior and terminology are governed by [`PRODUCT-BIBLE.md`](PRODUCT-BIBLE.md).
+> Product behavior and terminology are governed by [PRODUCT-BIBLE.md](PRODUCT-BIBLE.md) and the explicit locked decisions in [LOCKED-DECISIONS.md](LOCKED-DECISIONS.md).
 
 Artist Arcade should behave like a protocol state machine. The host console is an override and inspection surface, not the thing that keeps the event alive.
+
+## Critical public/private boundary
+
+The protocol may use a **16-artist internal queue** per event.
+
+**16 is secret operational logic and must never be exposed to ordinary users.**
+
+Public UX must not expose:
+- queue population;
+- entrant count;
+- “X of 16”;
+- 16-slot brackets;
+- hidden queue progress;
+- API fields whose purpose is to reveal the internal 16-person mechanism.
+
+The public competition proposition is:
+- **1 in 5 wins**;
+- the winner receives **5× the entry amount**.
+
+The backend may use the hidden queue to implement the economics and tournament protocol.
 
 ## Current Tick
 
@@ -16,7 +36,7 @@ The tick route calls `/api/pilot`, which advances protocol state before returnin
 
 ## Automatic Transitions
 
-- When an event queue reaches 16 artists, the queue locks.
+- When an event's hidden internal queue reaches 16 artists, the queue locks.
 - The event moves to `submission`.
 - Submission deadline is 24 hours from the event start time.
 - When all current-round artists submit, the event moves to `judging`.
@@ -37,6 +57,21 @@ The protocol separates the three user perspectives:
 - **Contender:** future completed-battle playback showing the already-decided judgment, score influence, outcome, and finishing move after judging is complete.
 
 The live spectator visualization and cinematic contender playback are product-layer roadmap items; the protocol must preserve enough judgment/audit data to support them.
+
+## Judgment Timeline Requirement
+
+A final score alone is not sufficient for the intended battle visualization.
+
+The protocol/product layer should preserve meaningful judgment-state events containing, at minimum:
+- battle/assignment ID;
+- timestamp or elapsed judgment time;
+- category changed;
+- comparative slider value after the change;
+- resulting weighted aggregate;
+- final judgment lock;
+- winner.
+
+Do not persist every pointer movement solely for animation. Persist meaningful settled changes that can faithfully reconstruct the battle's judgment progression.
 
 ## Audit Trail
 
@@ -69,3 +104,4 @@ Tracked actions include:
 - EXP/rank computation after the formula is validated.
 - Spectator live visualization and post-result audience calibration vote.
 - Contender cinematic battle playback and finishing-move rendering.
+- Final Reveal experience after blind progression.
