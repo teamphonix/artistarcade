@@ -481,3 +481,44 @@ Do not silently invent these values in implementation. They require explicit pro
 ## 22. One-Sentence Definition
 
 > **Artist Arcade is a competitive platform that turns artistic creation into a game: creators enter challenges, submit original work, judge one another through structured evaluation, and progress through tournament brackets for real prizes — where the work, not the follower count, determines who advances.**
+
+
+---
+
+## 23. September 2026 Locked-Decision Override
+
+The following decisions are explicit founder locks and override any older/speculative wording elsewhere in this document or in concept art.
+
+### Hidden queue
+The internal event queue remains **16 artists**, but **16 must never be visible to ordinary users**. No public UI, copy, bracket, queue indicator, or API response intended for ordinary users may reveal the hidden participant requirement.
+
+The public proposition is:
+- **1 in 5 wins**;
+- the winner receives **5× the entry amount**.
+
+The 16-person mechanism is backend protocol/economic architecture only.
+
+### Final scoring weights
+- Lyrics — 25%
+- Delivery — 20%
+- Originality — 20%
+- Flow — 15%
+- Impact — 20%
+
+### FateKeeper scoring interaction
+Use one comparative A-vs-B slider per category. The five weighted category positions collectively determine the aggregate battle percentage.
+
+### Judgment replay data
+Preserve meaningful settled judgment changes so the same battle can be rendered live for Spectators and reconstructed later for Contenders. At minimum preserve battle/assignment ID, time, category change, slider value, weighted aggregate, final lock, and winner.
+
+### Avatar MVP
+Keep avatar customization light: small starter selection, limited hood/mask options, limited aura/accent options, identity, and equipped finishing move. Large gear/inventory systems are not MVP requirements.
+
+### Money vocabulary
+Season Zero uses **dollars**. Arena Coins, REP, stars, tokens, and similar fictional currencies are not MVP requirements. A future smart-contract/crypto system is exploration only and is not an MVP dependency.
+
+### Finishing moves
+Season Zero targets **three** reusable cinematic finishing moves. **Scroll Crush** is the established first concept. Two more remain to be designed. Finishers are identity/cosmetic effects and never affect competitive scoring.
+
+### Concept art authority
+AI-generated concept screens are visual references, not feature specifications. Any unapproved number, currency, reward, rank rule, store, inventory, entrant count, bracket format, or other mechanic shown in concept art is non-authoritative.
