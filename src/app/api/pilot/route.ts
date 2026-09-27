@@ -690,6 +690,7 @@ function summarize(state: ProtocolState) {
     battles: state.battles,
     assignments: state.assignments,
     judgments: state.judgments,
+    judgmentEvents: state.judgmentEvents || [],
     walletLedger: state.walletLedger,
     notifications: buildNotifications(state),
     betaReadiness: buildBetaReadiness(state),
@@ -1564,39 +1565,46 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "This 15-minute judging window expired." }, { status: 409 });
       }
 
-      const rawContestantScores = body?.contestantScores || {};
       const battleArtistIds = [battle.artistAId, battle.artistBId];
-      const fallbackWinnerArtistId = String(body?.selectedWinnerArtistId || "");
-      const contestantScores = battleArtistIds.reduce(
-        (nextScores, artistId) => ({
-          ...nextScores,
-          [artistId]: SCORE_CATEGORIES.reduce(
-            (scorecard, category) => ({
-              ...scorecard,
-              [category.key]: clampScore(
-                rawContestantScores?.[artistId]?.[category.key] ??
-                  (artistId === fallbackWinnerArtistId ? body?.scores?.[category.key] : 1),
-              ),
-            }),
-            {} as Record<ScoreKey, number>,
-          ),
-        }),
-        {} as Record<string, Record<ScoreKey, number>>,
-      );
-      const scoredArtists = battleArtistIds
-        .map((artistId) => ({
-          artistId,
-          score: weightedScore(contestantScores[artistId]),
-        }))
-        .sort((a, b) => b.score - a.score);
-      const selectedWinnerArtistId =
-        scoredArtists[0]?.score === scoredArtists[1]?.score && battleArtistIds.includes(fallbackWinnerArtistId)
-          ? fallbackWinnerArtistId
-          : scoredArtists[0]?.artistId || fallbackWinnerArtistId;
+      const { normalizeSliders, winnerFromAggregate } = await import("@/app/lib/scoring");
+      const sliders = normalizeSliders(body?.sliders || {});
+      const decision = winnerFromAggregate(battle.artistAId, battle.artistBId, sliders);
 
-      if (!battleArtistIds.includes(selectedWinnerArtistId)) {
-        return NextResponse.json({ error: "Battle winner selection is invalid." }, { status: 400 });
+      if (decision.isTie || !decision.winnerArtistId) {
+        return NextResponse.json({ error: "Fate cannot lock at 50/50. Move at least one slider." }, { status: 409 });
       }
+
+      const selectedWinnerArtistId = decision.winnerArtistId;
+      const incomingEvents = Array.isArray(body?.events) ? body.events : [];
+      const openedAt = assignment.openedAt ? new Date(assignment.openedAt).getTime() : Date.now();
+      const lockEvent = {
+        id: makeId(),
+        battleId: battle.id,
+        assignmentId,
+        tMs: Math.max(0, Date.now() - openedAt),
+        type: "lock" as const,
+        sliders,
+        aPct: decision.aPct,
+        bPct: decision.bPct,
+      };
+      const events = [...incomingEvents, lockEvent];
+
+      const contestantScores = {
+        [battle.artistAId]: SCORE_CATEGORIES.reduce(
+          (scorecard, category) => ({
+            ...scorecard,
+            [category.key]: Math.max(1, Math.round(((100 - sliders[category.key]) / 100) * 10)),
+          }),
+          {} as Record<ScoreKey, number>,
+        ),
+        [battle.artistBId]: SCORE_CATEGORIES.reduce(
+          (scorecard, category) => ({
+            ...scorecard,
+            [category.key]: Math.max(1, Math.round((sliders[category.key] / 100) * 10)),
+          }),
+          {} as Record<ScoreKey, number>,
+        ),
+      };
 
       const judgment: ProtocolJudgment = {
         id: makeId(),
@@ -1605,9 +1613,13 @@ export async function POST(request: Request) {
         judgeArtistId: assignment.judgeArtistId,
         scores: contestantScores[selectedWinnerArtistId],
         contestantScores,
+        sliders,
+        events,
         selectedWinnerArtistId,
         createdAt: new Date().toISOString(),
       };
+
+      state.judgmentEvents = [...(state.judgmentEvents || []).filter((entry) => entry.assignmentId !== assignmentId), ...events];
 
       state.judgments = state.judgments.filter((entry) => entry.assignmentId !== assignmentId);
       state.judgments.push(judgment);
@@ -1621,8 +1633,9 @@ export async function POST(request: Request) {
           assignmentId,
           battleId: battle.id,
           selectedWinnerArtistId,
-          contestantScores,
-          weightedTotals: scoredArtists,
+          sliders,
+          aPct: decision.aPct,
+          bPct: decision.bPct,
         },
       });
       tryAdvanceEvent(state, battle.eventId);
