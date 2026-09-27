@@ -108,6 +108,18 @@ export type ProtocolAssignment = {
   completedAt: string | null;
 };
 
+export type ProtocolJudgmentEvent = {
+  id: string;
+  battleId: string;
+  assignmentId: string;
+  tMs: number;
+  type: "open" | "slider" | "lock";
+  category?: ScoreKey;
+  sliders: Record<ScoreKey, number>;
+  aPct: number;
+  bPct: number;
+};
+
 export type ProtocolJudgment = {
   id: string;
   assignmentId: string;
@@ -115,6 +127,8 @@ export type ProtocolJudgment = {
   judgeArtistId: string;
   scores: Record<ScoreKey, number>;
   contestantScores?: Record<string, Record<ScoreKey, number>>;
+  sliders?: Record<ScoreKey, number>;
+  events?: ProtocolJudgmentEvent[];
   selectedWinnerArtistId: string;
   createdAt: string;
 };
@@ -156,6 +170,7 @@ export type ProtocolState = {
   battles: ProtocolBattle[];
   assignments: ProtocolAssignment[];
   judgments: ProtocolJudgment[];
+  judgmentEvents: ProtocolJudgmentEvent[];
   walletLedger: WalletLedgerEntry[];
   auditLog: ProtocolAuditEntry[];
 };
@@ -236,6 +251,7 @@ export const seedPilotState: ProtocolState = {
   battles: [],
   assignments: [],
   judgments: [],
+  judgmentEvents: [],
   walletLedger: [],
   auditLog: [],
 };
@@ -245,7 +261,10 @@ export async function readPilotState() {
 
   try {
     const existing = await fs.readFile(pilotPath, "utf8");
-    return JSON.parse(existing) as ProtocolState;
+    const parsed = JSON.parse(existing) as ProtocolState;
+    parsed.judgmentEvents = parsed.judgmentEvents || [];
+    parsed.judgments = parsed.judgments || [];
+    return parsed;
   } catch {
     await writePilotState(seedPilotState);
     return structuredClone(seedPilotState);
