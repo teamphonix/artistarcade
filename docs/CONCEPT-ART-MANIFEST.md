@@ -1,44 +1,42 @@
 # Artist Arcade — Concept Art Manifest
 
-These are the latest 10 concept images supplied in the September 2026 product-design session. They are **visual references only**.
+These frames are **visual references only**. Locked decisions in `docs/LOCKED-DECISIONS.md` override anything drawn in a screenshot.
 
-| # | Concept | Current file reference |
-|---|---|---|
-| 1 | Arena Hub / main menu | `file_000000006a2881f5a003d973204f1c43` |
-| 2 | Spectator Hub | `file_000000009f0881f5a096d329a6787ae6` |
-| 3 | Arena Hub alternate | `file_0000000011a481f5a5fd5c2669755ead` |
-| 4 | Entry Portals — Compete / Judge / Spectate | `file_000000007c4081f5b73a7345a3b19656` |
-| 5 | Prize Board | `file_000000005d8881f5ae919c9f49731414` |
-| 6 | Defeat result | `file_000000001cb081f5a480432df678c408` |
-| 7 | Victory result | `file_00000000db9481f5a66a007397de4f56` |
-| 8 | Lyrical Onslaught battle | `file_00000000919081f5927a436e088db718` |
-| 9 | Rank Badges | `file_00000000105081f5abdcf31ebb82d01c` |
-| 10 | FateKeeper Training Grounds | `file_00000000d57c81f59507f42ebbe15e33` |
+Canonical storage path: `public/assets/concept-art/`
 
-## Repository status
+| File | Screen | Status | Scope |
+|---|---|---|---|
+| `01-landing-signup.png` | Public landing | REFERENCE | MVP visual |
+| `02-about-calling-all-artists.png` | About | REFERENCE | MVP visual |
+| `03-challenges.png` | Challenges | REFERENCE | MVP visual |
+| `04-entry-portals.jpg` | Role select | REFERENCE | MVP nav |
+| `05-arena-hub-compact.jpg` | Arena hub compact | REFERENCE | NEXT |
+| `06-arena-hub-compete.png` | Contender hub | REFERENCE | NEXT |
+| `07-prize-board.png` | Prize Board | NEEDS CHANGE | NEXT visual; Create Event = post-MVP |
+| `08-spectator-hub.png` | Spectator hub | FUTURE | FUTURE |
+| `09-spectator-battle-live.png` | Spectator battle | REFERENCE + NEEDS CHANGE | NEXT meter / FUTURE chrome |
+| `10-spectator-audience-vote.png` | Post-result audience vote | REFERENCE | FUTURE UI; rule is locked |
+| `11-fatekeeper-console.png` | FateKeeper table | REFERENCE + NEEDS CHANGE | MVP judging UX; fix weights |
+| `12-fatekeeper-quarters.png` | FateKeeper hub | FUTURE | FUTURE |
+| `13-fatekeeper-training.png` | Training Grounds | FUTURE | FUTURE |
+| `14-contender-live-watch-CONFLICT.png` | Contender live watch | CONFLICT | Do not implement as live self-watch |
+| `15-lyrical-onslaught-intro.png` | Battle intro | REFERENCE | NEXT |
+| `16-victory.png` | Victory | REFERENCE + NEEDS CHANGE | NEXT after Reveal |
+| `17-defeat.png` | Defeat | REFERENCE + NEEDS CHANGE | NEXT after Reveal |
+| `18-forge-identity.png` | Avatar forge | NEEDS CHANGE | MVP = tiny subset |
+| `19-rank-badges.png` | Rank ladder | REFERENCE / FUTURE | FUTURE; EXP math not locked |
+| `20-loading.png` | Loading | BRAND | MVP |
 
-The latest 10 images are **not currently stored as binary files in GitHub**. They remain available as attachments in the originating ChatGPT conversation. GitHub currently contains the established brand assets under `public/brand/`.
+## Do not implement from the art
 
-A Library copy was attempted for portability, but the ChatGPT File Library is currently at its storage limit, so those images could not be duplicated there.
+- Coins, REP, XP tickers, Arena Pass, gear shop
+- Visible field size / seeds / "32 of 64"
+- Best of 3
+- Contender watching their own battle live while Fate is being decided
+- Scoring weights that disagree with the locked rubric
+- Create Event in Season Zero (locked as post-MVP platform feature)
+- Training Grounds / full Forge catalog as MVP
 
-## Interpretation
+## Create Event note
 
-Treat these screens as:
-- visual language;
-- atmosphere;
-- layout inspiration;
-- interaction inspiration.
-
-Do **not** treat them as authoritative for:
-- hidden participant counts;
-- currencies;
-- rewards;
-- rank formulas;
-- XP;
-- stores/inventory;
-- event populations;
-- bracket presentation;
-- random features;
-- unapproved mechanics.
-
-The authoritative product rules are in `docs/PRODUCT-BIBLE.md` and `docs/LOCKED-DECISIONS.md`.
+User-created events **are** part of the live platform and will appear on the Prize Board. They are **locked out of MVP**. Official hosted events only for Season Zero.

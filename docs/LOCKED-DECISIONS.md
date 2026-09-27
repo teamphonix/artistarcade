@@ -102,3 +102,21 @@ AI-generated concept screens are **visual references, not feature specifications
 If a concept image contains an unapproved feature, number, currency, rank rule, entrant count, score weight, reward, bracket format, "best of" format, store item, or other mechanic, it must not be treated as product truth.
 
 Product rules come from the Product Bible and explicit locked-decision documentation.
+
+## 9. User-Created Events / Prize Board Listing — LOCKED SCOPE SPLIT
+
+**Creating an event is a core platform capability.** It is not a discarded idea.
+
+It is also **not Season Zero / MVP scope.**
+
+### MVP (Season Zero)
+- Events are official hosted pilot pools only (Lyrical Onslaught, Story Mode, Beat Talk, Persona Pen).
+- The Prize Board, if shown at all in MVP, lists those official events with dollar entry / 5× prize language.
+- Do not ship a Create Event button, host-your-own flow, or public user-event marketplace in MVP.
+- Concept-art "CREATE EVENT" chrome is a future visual hint, not an MVP ticket.
+
+### Live platform (post-MVP)
+- Artists/hosts will be able to create events.
+- Created events will list on the Prize Board for others to join.
+- User-created events must still obey locked public economics language (no leaking internal queue size), dollar vocabulary unless a later lock changes that, and the same judging/protocol constraints unless explicitly revised.
+- Rules for who can create, entry/prize bounds, moderation, and payout rails are future product decisions. Do not invent them in MVP code.
