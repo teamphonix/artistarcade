@@ -8,32 +8,33 @@
 1. `docs/PRODUCT-BIBLE.md`
 2. `docs/LOCKED-DECISIONS.md`
 3. `docs/autonomous-protocol.md`
-4. `docs/mvp-setup.md`
-5. `docs/live-pilot-accounts.md`
-6. `docs/CONCEPT-ART-MANIFEST.md`
-7. `AGENTS.md`
+4. `docs/REVEAL-AND-FINISHER-SPEC.md`
+5. `docs/BUILD-ORDER.md`
+6. `docs/mvp-setup.md`
+7. `docs/live-pilot-accounts.md`
+8. `docs/CONCEPT-ART-MANIFEST.md`
+9. `AGENTS.md`
 
-**Conflict rule:** `LOCKED-DECISIONS.md` overrides concept art.
+**Conflict rule:** `LOCKED-DECISIONS.md` overrides concept art. Reveal beats come from `REVEAL-AND-FINISHER-SPEC.md`.
 
-## Locked in the latest session
+## Locked
 
 - Hidden 16. Public: 1 in 5 wins, 5× entry, dollars only.
-- Scoring weights: 25 / 20 / 20 / 15 / 20. Comparative A-vs-B sliders.
+- Scoring weights: 25 / 20 / 20 / 15 / 20.
+- Comparative sliders 0–100 A→B. No 50/50 lock.
 - Judgment timeline required.
-- Light avatars. Three finishers. Scroll Crush locked.
-- **User-created events are core live-platform. Not MVP.** Official hosted events only in Season Zero. Post-MVP they list on the Prize Board.
+- Reveal: SEALED → GATES → INTRO → METER → LOCK → FINISHER → OUTCOME → REST.
+- Default finisher: `scroll_crush`. Two more IDs reserved, unnamed.
+- Light avatars. Create Event is live-platform, not MVP.
 - Contender does not watch their own battle live.
-- Concept art is reference, not spec.
 
-## Concept-art path
+## In repo now
 
-`public/assets/concept-art/` — see manifest for the 20-frame inventory.
+- Concept art frames: `public/assets/concept-art/`
+- Scoring helper: `src/app/lib/scoring.ts` (not yet wired into FateKeeper writes)
 
-## Next work
+## Next slice
 
-1. Reveal spec
-2. FateKeeper timeout + duty rules
-3. Strip 16 from public UI/API
-4. Comparative sliders + judgment event log
-5. 64-artist protocol simulation
-6. Then cinematic layer
+Slice 1: FateKeeper sliders write `judgmentEvents` and refuse ties.
+Then Slice 2: strip 16 from public payloads.
+Then Reveal client. Then Scroll Crush.
