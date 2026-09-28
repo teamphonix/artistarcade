@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import FateMeter from "@/app/components/FateMeter";
 import { aggregateFromSliders, evenSliders, type SliderMap } from "@/app/lib/scoring";
 
 type Artist = {
@@ -657,25 +658,23 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                     <div className="judge-scorecard judge-comparative">
                       <div>
                         <span>Battle meter</span>
-                        <strong>{sliderDecision.aPct}% A — {sliderDecision.bPct}% B</strong>
+                        <strong>
+                          {matchupArtists[0]?.artist.name} {sliderDecision.aPct}% — {sliderDecision.bPct}% {matchupArtists[1]?.artist.name}
+                        </strong>
                       </div>
                       {scoreCategories.map((category) => (
-                        <label key={category.key}>
-                          <span>
-                            {category.label} <em>{category.weight}%</em>
-                          </span>
-                          <input
-                            disabled={!playbackUnlocked || assignmentExpired || isBusy}
-                            max="100"
-                            min="0"
-                            onChange={(event) => updateSlider(category.key, Number(event.target.value))}
-                            type="range"
-                            value={sliders[category.key] ?? 50}
-                          />
-                          <output>{sliders[category.key] ?? 50}</output>
-                        </label>
+                        <FateMeter
+                          disabled={!playbackUnlocked || assignmentExpired || isBusy}
+                          key={category.key}
+                          label={category.label}
+                          nameA={matchupArtists[0]?.artist.name || "A"}
+                          nameB={matchupArtists[1]?.artist.name || "B"}
+                          onChange={(value) => updateSlider(category.key, value)}
+                          value={sliders[category.key] ?? 50}
+                          weight={category.weight}
+                        />
                       ))}
-                      {sliderDecision.isTie ? <p>Move a slider off even before lock.</p> : null}
+                      {sliderDecision.isTie ? <p>Center is even. Move at least one meter off 0 / 0 before lock.</p> : null}
                     </div>
                     <div className="judge-status-strip">
                       <span>
