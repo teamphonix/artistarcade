@@ -137,7 +137,8 @@ export default function ArtistEventRoomPage() {
   const [file, setFile] = useState<File | null>(null);
   const [sliders, setSliders] = useState<SliderMap>(evenSliders());
   const [judgmentEvents, setJudgmentEvents] = useState<Array<Record<string, unknown>>>([]);
-  const [heardFullTrack, setHeardFullTrack] = useState<Record<string, boolean>>({});
+  const [playedOnce, setPlayedOnce] = useState<Record<string, boolean>>({});
+  const [cardDeadlineAt, setCardDeadlineAt] = useState<Record<string, number>>({});
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [playingSubmissionId, setPlayingSubmissionId] = useState<string | null>(null);
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
@@ -151,7 +152,8 @@ export default function ArtistEventRoomPage() {
       assignmentIdRef.current = nextAssignmentId;
       setSliders(evenSliders());
       setJudgmentEvents([]);
-      setHeardFullTrack({});
+      setPlayedOnce({});
+      setCardDeadlineAt({});
       setPlayingSubmissionId(null);
       audioRefs.current = {};
     }
@@ -299,7 +301,8 @@ export default function ArtistEventRoomPage() {
 
   const assignmentExpired = assignment?.dueAt ? new Date(assignment.dueAt).getTime() <= currentTime : false;
   const countdownLabel = assignment?.dueAt ? relativeCountdown(assignment.dueAt) : "Awaiting trigger";
-  const playbackUnlocked = matchupArtists.length > 0 && matchupArtists.every(({ submission }) => heardFullTrack[submission.id]);
+  const playbackUnlocked = matchupArtists.length > 0 && matchupArtists.every(({ submission }) => playedOnce[submission.id]);
+  const CARD_PLAY_BUDGET_MS = 6 * 60 * 1000;
   const eventStarted = eventRoom?.queueClosedAt ? new Date(eventRoom.queueClosedAt).getTime() <= currentTime : true;
   const scoreCategories = useMemo(() => payload?.scoreCategories || [], [payload?.scoreCategories]);
   const sliderDecision = useMemo(() => aggregateFromSliders(sliders), [sliders]);
@@ -367,6 +370,31 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
     });
   }
 
+
+  function cardBudgetLeftMs(submissionId: string) {
+    const deadline = cardDeadlineAt[submissionId];
+    if (!deadline) {
+      return CARD_PLAY_BUDGET_MS;
+    }
+    return Math.max(0, deadline - currentTime);
+  }
+
+  function cardBudgetExpired(submissionId: string) {
+    return Boolean(cardDeadlineAt[submissionId]) && cardBudgetLeftMs(submissionId) <= 0;
+  }
+
+  function formatBudget(ms: number) {
+    const total = Math.max(0, Math.ceil(ms / 1000));
+    const minutes = Math.floor(total / 60);
+    const seconds = total % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  }
+
+  function startCardBudget(submissionId: string) {
+    setPlayedOnce((current) => ({ ...current, [submissionId]: true }));
+    setCardDeadlineAt((current) => current[submissionId] ? current : { ...current, [submissionId]: Date.now() + CARD_PLAY_BUDGET_MS });
+  }
+
   function playSubmission(submissionId: string) {
     Object.entries(audioRefs.current).forEach(([id, node]) => {
       if (!node) {
@@ -378,11 +406,16 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
       }
     });
 
+    if (cardBudgetExpired(submissionId)) {
+      return;
+    }
+
     const nextAudio = audioRefs.current[submissionId];
     if (!nextAudio) {
       return;
     }
 
+    startCardBudget(submissionId);
     void nextAudio.play();
     setPlayingSubmissionId(submissionId);
   }
@@ -403,7 +436,11 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
       return;
     }
 
+    if (cardBudgetExpired(submissionId)) {
+      return;
+    }
     audioNode.currentTime = 0;
+    startCardBudget(submissionId);
     void audioNode.play();
     setPlayingSubmissionId(submissionId);
   }
@@ -529,12 +566,12 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                       <div className="judge-battle-meta">
                         <span>Round {battle.round}</span>
                         <span>{judgingEvent?.challengeTitle || "Challenge active"}</span>
-                        <span>{playbackUnlocked ? `Leader: ${scoreLeader}` : "Full listens required"}</span>
+                        <span>{playbackUnlocked ? `Leader: ${scoreLeader}` : "Press play on both cards"}</span>
                       </div>
                     </div>
                     <div className="judge-playback-grid">
                       {matchupArtists.map(({ artist: competitor, submission: matchupSubmission }, index) => {
-                        const heardOnce = !!heardFullTrack[matchupSubmission.id];
+                        const heardOnce = !!playedOnce[matchupSubmission.id];
                         const isSelected = winningScoreArtistId === competitor.id;
                         const isPlaying = playingSubmissionId === matchupSubmission.id;
 
@@ -551,14 +588,15 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                               <span>{matchupSubmission.durationSeconds}s</span>
                             </div>
                             <small>
-                              {heardOnce
-                                ? "Full listen completed. Advanced playback unlocked."
-                                : "Complete one full listen before decision unlocks."}
+                              {cardBudgetExpired(matchupSubmission.id)
+                                ? "Card listen window closed."
+                                : heardOnce
+                                  ? `Listen window ${formatBudget(cardBudgetLeftMs(matchupSubmission.id))}`
+                                  : "Press play to open this card. 6:00 starts on first play."}
                             </small>
                             <audio
-                              controls={playbackUnlocked}
+                              controls={!cardBudgetExpired(matchupSubmission.id) && !assignmentExpired}
                               onEnded={() => {
-                                setHeardFullTrack((current) => ({ ...current, [matchupSubmission.id]: true }));
                                 setPlayingSubmissionId((current) =>
                                   current === matchupSubmission.id ? null : current,
                                 );
@@ -568,26 +606,48 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                                   current === matchupSubmission.id ? null : current,
                                 );
                               }}
-                              onPlay={() => setPlayingSubmissionId(matchupSubmission.id)}
+                              onPlay={() => {
+                                if (cardBudgetExpired(matchupSubmission.id)) {
+                                  audioRefs.current[matchupSubmission.id]?.pause();
+                                  return;
+                                }
+                                startCardBudget(matchupSubmission.id);
+                                setPlayingSubmissionId(matchupSubmission.id);
+                              }}
+                              onTimeUpdate={(event) => {
+                                if (cardBudgetExpired(matchupSubmission.id)) {
+                                  event.currentTarget.pause();
+                                }
+                              }}
                               preload="metadata"
                               ref={(node) => {
                                 audioRefs.current[matchupSubmission.id] = node;
                               }}
                               src={matchupSubmission.audioUrl}
                             />
-                            {!playbackUnlocked ? (
-                              <div className="judge-audio-gate">
-                                <button onClick={() => playSubmission(matchupSubmission.id)} type="button">
-                                  {isPlaying ? "Playing..." : "Play full track"}
-                                </button>
-                                <button onClick={() => pauseSubmission(matchupSubmission.id)} type="button">
-                                  Pause
-                                </button>
-                                <button onClick={() => restartSubmission(matchupSubmission.id)} type="button">
-                                  Restart
-                                </button>
-                              </div>
-                            ) : null}
+                            <div className="judge-audio-gate">
+                              <button
+                                disabled={cardBudgetExpired(matchupSubmission.id) || assignmentExpired || isBusy}
+                                onClick={() => playSubmission(matchupSubmission.id)}
+                                type="button"
+                              >
+                                {cardBudgetExpired(matchupSubmission.id) ? "Window closed" : isPlaying ? "Playing..." : "Play"}
+                              </button>
+                              <button
+                                disabled={cardBudgetExpired(matchupSubmission.id) || assignmentExpired}
+                                onClick={() => pauseSubmission(matchupSubmission.id)}
+                                type="button"
+                              >
+                                Pause
+                              </button>
+                              <button
+                                disabled={cardBudgetExpired(matchupSubmission.id) || assignmentExpired}
+                                onClick={() => restartSubmission(matchupSubmission.id)}
+                                type="button"
+                              >
+                                Restart
+                              </button>
+                            </div>
 
                           </article>
                         );
@@ -621,9 +681,13 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                       <span>
                         {playbackUnlocked
                           ? `Scorecard unlocked. Leader: ${scoreLeader}`
-                          : "Both tracks must finish once"}
+                          : "Press play once on each card"}
                       </span>
-                      <strong>{assignmentExpired ? "Judging window expired" : `Time left ${countdownLabel}`}</strong>
+                      <strong>
+                        {assignmentExpired
+                          ? "Judging window expired"
+                          : `Duty ${countdownLabel} · A ${matchupArtists[0] ? formatBudget(cardBudgetLeftMs(matchupArtists[0].submission.id)) : "6:00"} · B ${matchupArtists[1] ? formatBudget(cardBudgetLeftMs(matchupArtists[1].submission.id)) : "6:00"}`}
+                      </strong>
                     </div>
                     <button
                       disabled={!playbackUnlocked || sliderDecision.isTie || assignmentExpired || isBusy}
