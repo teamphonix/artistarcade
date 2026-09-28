@@ -1,0 +1,138 @@
+.fate-meter {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.65rem 0 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.fate-meter-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #f3ead7;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fate-meter-title em,
+.fate-meter-title small {
+  color: #b8c0cc;
+  font-style: normal;
+}
+
+.fate-meter-ends {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  gap: 0.5rem;
+}
+
+.fate-meter-ends strong {
+  display: grid;
+  gap: 0.1rem;
+  font-size: 0.92rem;
+  line-height: 1.1;
+  text-transform: none;
+}
+
+.fate-meter-ends strong.is-a {
+  color: #ffd36a;
+  text-align: left;
+}
+
+.fate-meter-ends strong.is-b {
+  color: #7ad7ff;
+  text-align: right;
+}
+
+.fate-meter-ends b {
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fate-meter-ends em {
+  color: #9aa3b0;
+  font-size: 0.72rem;
+  font-style: normal;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.fate-meter-track {
+  position: relative;
+  height: 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: #0c1016;
+  overflow: hidden;
+}
+
+.fate-meter-fill {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+
+.fate-meter-fill.is-a {
+  right: 50%;
+  background: linear-gradient(90deg, #ffb020, #ffe08a);
+}
+
+.fate-meter-fill.is-b {
+  left: 50%;
+  background: linear-gradient(90deg, #5ec8ff, #b8eeff);
+}
+
+.fate-meter-zero {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: #f8f3e6;
+  transform: translateX(-1px);
+  z-index: 2;
+}
+
+.fate-meter-dot {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  box-shadow: 0 0 0 2px #0c1016;
+}
+
+.fate-meter-dot.is-a {
+  background: #ffd36a;
+}
+
+.fate-meter-dot.is-b {
+  background: #7ad7ff;
+}
+
+.fate-meter-track input[type="range"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 4;
+}
+
+.fate-meter-track input[type="range"]:disabled {
+  cursor: not-allowed;
+}
+
+.fate-meter-scale {
+  display: flex;
+  justify-content: space-between;
+  color: #8b93a0;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
