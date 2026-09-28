@@ -32,9 +32,9 @@ export default function FateMeter({
     reading.a === 0 && reading.b === 0 ? "Even" : reading.a > reading.b ? `+${reading.a}` : `+${reading.b}`;
 
   return (
-    <div className="fm">
+    <section className="fm">
       <style>{`
-        .fm { display:grid; gap:6px; padding:8px 0 10px; border-bottom:1px solid rgba(255,255,255,.08); }
+        .fm { display:grid !important; flex-direction:column !important; width:100%; gap:6px; padding:8px 0 10px; border-bottom:1px solid rgba(255,255,255,.08); }
         .fm-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
         .fm-cat { color:#d7d0c0; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
         .fm-cat i { color:#8b93a0; font-style:normal; }
@@ -93,6 +93,6 @@ export default function FateMeter({
           {nameB}
         </span>
       </div>
-    </div>
+    </section>
   );
 }
