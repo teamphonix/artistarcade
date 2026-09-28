@@ -349,9 +349,10 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
     }
   }
 
-  function updateSlider(key: ScoreCategory["key"], value: number) {
+  function updateSlider(key: ScoreCategory["key"], side: "a" | "b", value: number) {
     setSliders((current) => {
-      const next = { ...current, [key]: Math.min(100, Math.max(0, Math.round(value))) };
+      const dual = current[key] && typeof current[key] === "object" ? current[key] as { a: number; b: number } : { a: 0, b: 0 };
+      const next = { ...current, [key]: { ...dual, [side]: Math.min(100, Math.max(0, Math.round(value))) } };
       const agg = aggregateFromSliders(next);
       setJudgmentEvents((events) => [
         ...events,
@@ -669,12 +670,14 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                           label={category.label}
                           nameA={matchupArtists[0]?.artist.name || "A"}
                           nameB={matchupArtists[1]?.artist.name || "B"}
-                          onChange={(value) => updateSlider(category.key, value)}
-                          value={sliders[category.key] ?? 50}
+                          onChangeA={(value) => updateSlider(category.key, "a", value)}
+                          onChangeB={(value) => updateSlider(category.key, "b", value)}
+                          scoreA={typeof sliders[category.key] === "object" ? sliders[category.key].a : 0}
+                          scoreB={typeof sliders[category.key] === "object" ? sliders[category.key].b : 0}
                           weight={category.weight}
                         />
                       ))}
-                      {sliderDecision.isTie ? <p>Center is even. Move at least one meter off 0 / 0 before lock.</p> : null}
+                      {sliderDecision.isTie ? <p>Score both artists. Totals must not tie.</p> : null}
                     </div>
                     <div className="judge-status-strip">
                       <span>
