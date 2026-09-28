@@ -5,36 +5,32 @@ type FateMeterProps = {
   nameB: string;
   label: string;
   weight: number;
-  value: number;
+  scoreA: number;
+  scoreB: number;
   disabled?: boolean;
-  onChange: (value: number) => void;
+  onChangeA: (value: number) => void;
+  onChangeB: (value: number) => void;
 };
-
-function pole(value: number) {
-  const clamped = Math.min(100, Math.max(0, value));
-  return {
-    a: Math.max(0, Math.round((50 - clamped) * 2)),
-    b: Math.max(0, Math.round((clamped - 50) * 2)),
-  };
-}
 
 export default function FateMeter({
   nameA,
   nameB,
   label,
   weight,
-  value,
+  scoreA,
+  scoreB,
   disabled,
-  onChange,
+  onChangeA,
+  onChangeB,
 }: FateMeterProps) {
-  const reading = pole(value);
-  const lead =
-    reading.a === 0 && reading.b === 0 ? "Even" : reading.a > reading.b ? `+${reading.a}` : `+${reading.b}`;
+  const a = Math.min(100, Math.max(0, Math.round(scoreA)));
+  const b = Math.min(100, Math.max(0, Math.round(scoreB)));
+  const lead = a === b ? "Even" : a > b ? `A +${a - b}` : `B +${b - a}`;
 
   return (
     <section className="fm">
       <style>{`
-        .fm { display:grid !important; flex-direction:column !important; width:100%; gap:6px; padding:8px 0 10px; border-bottom:1px solid rgba(255,255,255,.08); }
+        .fm { display:grid !important; width:100%; gap:6px; padding:8px 0 10px; border-bottom:1px solid rgba(255,255,255,.08); }
         .fm-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
         .fm-cat { color:#d7d0c0; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
         .fm-cat i { color:#8b93a0; font-style:normal; }
@@ -47,14 +43,15 @@ export default function FateMeter({
         .fm-dot { position:absolute; top:50%; width:12px; height:12px; border-radius:50%; transform:translateY(-50%); z-index:3; box-shadow:0 0 0 2px #07090d; }
         .fm-dot.a { background:#ffd36a; }
         .fm-dot.b { background:#7ad7ff; }
-        .fm-track input[type=range] { position:absolute; inset:0; width:100%; margin:0; opacity:0; cursor:pointer; z-index:4; }
-        .fm-track input:disabled { cursor:not-allowed; }
         .fm-scale { display:flex; justify-content:space-between; color:#8b93a0; font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
-        .fm-names { display:flex; justify-content:space-between; gap:12px; }
-        .fm-names span { display:grid; gap:1px; max-width:46%; font-size:11px; line-height:1.2; font-weight:500; text-transform:none; }
+        .fm-names { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+        .fm-names label { display:grid; gap:3px; margin:0; }
         .fm-names .a { color:#ffd36a; text-align:left; }
         .fm-names .b { color:#7ad7ff; text-align:right; }
-        .fm-names b { font-size:16px; font-variant-numeric:tabular-nums; font-weight:700; }
+        .fm-names b { font-size:16px; font-variant-numeric:tabular-nums; }
+        .fm-names em { font-size:11px; font-style:normal; line-height:1.2; text-transform:none; }
+        .fm-names input[type=range] { width:100%; margin:0; accent-color:#ffd36a; }
+        .fm-names .b input[type=range] { accent-color:#7ad7ff; }
       `}</style>
       <div className="fm-top">
         <span className="fm-cat">
@@ -63,20 +60,11 @@ export default function FateMeter({
         <span className="fm-lead">{lead}</span>
       </div>
       <div className="fm-track">
-        <span className="fm-fill a" style={{ width: `${reading.a / 2}%` }} />
-        <span className="fm-fill b" style={{ width: `${reading.b / 2}%` }} />
+        <span className="fm-fill a" style={{ width: `${a / 2}%` }} />
+        <span className="fm-fill b" style={{ width: `${b / 2}%` }} />
         <span className="fm-mid" />
-        <span className="fm-dot a" style={{ left: `calc(${50 - reading.a / 2}% - 6px)` }} />
-        <span className="fm-dot b" style={{ left: `calc(${50 + reading.b / 2}% - 6px)` }} />
-        <input
-          aria-label={`${label}: ${nameA} vs ${nameB}`}
-          disabled={disabled}
-          max={100}
-          min={0}
-          onChange={(event) => onChange(Number(event.target.value))}
-          type="range"
-          value={value}
-        />
+        <span className="fm-dot a" style={{ left: `calc(${50 - a / 2}% - 6px)` }} />
+        <span className="fm-dot b" style={{ left: `calc(${50 + b / 2}% - 6px)` }} />
       </div>
       <div className="fm-scale">
         <span>100</span>
@@ -84,14 +72,16 @@ export default function FateMeter({
         <span>100</span>
       </div>
       <div className="fm-names">
-        <span className="a">
-          <b>{reading.a}</b>
-          {nameA}
-        </span>
-        <span className="b">
-          <b>{reading.b}</b>
-          {nameB}
-        </span>
+        <label className="a">
+          <b>{a}</b>
+          <em>{nameA}</em>
+          <input disabled={disabled} max={100} min={0} onChange={(event) => onChangeA(Number(event.target.value))} type="range" value={a} />
+        </label>
+        <label className="b">
+          <b>{b}</b>
+          <em>{nameB}</em>
+          <input disabled={disabled} max={100} min={0} onChange={(event) => onChangeB(Number(event.target.value))} type="range" value={b} />
+        </label>
       </div>
     </section>
   );
