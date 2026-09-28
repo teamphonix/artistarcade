@@ -1,4 +1,4 @@
-import { SCORE_CATEGORIES, type ScoreKey } from "./pilotStore";
+import { SCORE_CATEGORIES, type ScoreKey } from "./scoreCategories";
 
 export type SliderMap = Record<ScoreKey, number>;
 
