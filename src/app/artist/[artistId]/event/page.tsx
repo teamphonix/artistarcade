@@ -310,7 +310,7 @@ export default function ArtistEventRoomPage() {
     : "";
 
   const scoreLeader = matchupArtists.find(({ artist: contender }) => contender.id === winningScoreArtistId)?.artist.name || "TBD";
-
+const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs ") || "Battle card";
   async function handleJudgeSubmission() {
     if (!assignment || !battle || !playbackUnlocked || sliderDecision.isTie) {
       return;
