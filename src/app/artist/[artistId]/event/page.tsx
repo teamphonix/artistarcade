@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FateMeter from "@/app/components/FateMeter";
+import { createDemoJudging, DEMO_EVENTS } from "@/app/lib/demoJudging";
 import { aggregateFromSliders, evenSliders, type SliderMap } from "@/app/lib/scoring";
 
 type Artist = {
@@ -130,6 +131,9 @@ function weightedTotal(scorecard: Scorecard | undefined, categories: ScoreCatego
 export default function ArtistEventRoomPage() {
   const params = useParams<{ artistId: string }>();
   const artistId = params.artistId;
+  const isDemo = DEMO_EVENTS.some((event) => artistId === `demo-${event.slug}`);
+  const demoWaveRef = useRef(1);
+  const assignmentStartedAtRef = useRef(0);
   const [payload, setPayload] = useState<ProtocolPayload | null>(null);
   const [message, setMessage] = useState("");
   const [isBusy, setIsBusy] = useState(false);
@@ -152,6 +156,8 @@ export default function ArtistEventRoomPage() {
 
     if (nextAssignmentId !== assignmentIdRef.current) {
       assignmentIdRef.current = nextAssignmentId;
+      assignmentStartedAtRef.current = Date.now();
+      Object.values(audioRefs.current).forEach((node) => node?.pause());
       setSliders(evenSliders());
       setJudgmentEvents([]);
       setPlayedOnce({});
@@ -165,6 +171,10 @@ export default function ArtistEventRoomPage() {
   }, [artistId]);
 
   const loadProtocol = useCallback(async () => {
+    if (isDemo) {
+      syncPayloadState(createDemoJudging(artistId, demoWaveRef.current));
+      return;
+    }
     const response = await fetch("/api/pilot", { cache: "no-store" });
     const data = await response.json();
 
@@ -173,7 +183,7 @@ export default function ArtistEventRoomPage() {
     }
 
     syncPayloadState(data);
-  }, [syncPayloadState]);
+  }, [syncPayloadState, isDemo, artistId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -227,6 +237,7 @@ export default function ArtistEventRoomPage() {
 
   async function handleSubmission(event: FormEvent<HTMLFormElement>, eventId: string, round: number) {
     event.preventDefault();
+    if (isDemo) return;
     setIsBusy(true);
     setMessage("");
 
@@ -306,6 +317,11 @@ export default function ArtistEventRoomPage() {
   const countdownLabel = assignment?.dueAt ? relativeCountdown(assignment.dueAt) : "Awaiting trigger";
   const playbackUnlocked = matchupArtists.length > 0 && matchupArtists.every(({ submission }) => playedOnce[submission.id]);
   const CARD_PLAY_BUDGET_MS = 6 * 60 * 1000;
+  useEffect(() => {
+    Object.entries(audioRefs.current).forEach(([id, node]) => {
+      if (node && (assignmentExpired || (cardDeadlineAt[id] && cardDeadlineAt[id] <= currentTime))) node.pause();
+    });
+  }, [assignmentExpired, cardDeadlineAt, currentTime]);
   const eventStarted = eventRoom?.queueClosedAt ? new Date(eventRoom.queueClosedAt).getTime() <= currentTime : true;
   const scoreCategories = useMemo(() => payload?.scoreCategories || [], [payload?.scoreCategories]);
   const sliderDecision = useMemo(() => aggregateFromSliders(sliders), [sliders]);
@@ -318,7 +334,7 @@ export default function ArtistEventRoomPage() {
   const scoreLeader = matchupArtists.find(({ artist: contender }) => contender.id === winningScoreArtistId)?.artist.name || "TBD";
 const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs ") || "Battle card";
   async function handleJudgeSubmission() {
-    if (!assignment || !battle || !playbackUnlocked || sliderDecision.isTie) {
+    if (!assignment || !battle || !playbackUnlocked || sliderDecision.isTie || assignmentExpired) {
       return;
     }
 
@@ -326,6 +342,12 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
     setMessage("");
 
     try {
+      if (isDemo) {
+        Object.values(audioRefs.current).forEach((node) => node?.pause());
+        setPayload((current) => current ? { ...current, assignments: [] } : current);
+        setMessage(`Mock judgment locked: ${scoreLeader} wins, A ${sliderDecision.aPct} / B ${sliderDecision.bPct}. No real prize or balance change. Start the next mock card to test again.`);
+        return;
+      }
       const response = await fetch("/api/pilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -352,17 +374,17 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
   }
 
   function updateSlider(key: ScoreCategory["key"], side: "a" | "b", value: number) {
-    setSliders((current) => {
-      const dual = current[key] && typeof current[key] === "object" ? current[key] as { a: number; b: number } : { a: 0, b: 0 };
-      const next = { ...current, [key]: { ...dual, [side]: Math.min(100, Math.max(0, Math.round(value))) } };
+      const dual = sliders[key];
+      const next = { ...sliders, [key]: { ...dual, [side]: Math.min(100, Math.max(0, Math.round(value))) } };
       const agg = aggregateFromSliders(next);
+      setSliders(next);
       setJudgmentEvents((events) => [
         ...events,
         {
           id: crypto.randomUUID(),
           battleId: battle?.id,
           assignmentId: assignment?.id,
-          tMs: 0,
+          tMs: Math.max(0, Date.now() - assignmentStartedAtRef.current),
           type: "slider",
           category: key,
           sliders: next,
@@ -370,8 +392,6 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
           bPct: agg.bPct,
         },
       ]);
-      return next;
-    });
   }
 
 
@@ -410,7 +430,7 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
       }
     });
 
-    if (cardBudgetExpired(submissionId)) {
+    if (cardBudgetExpired(submissionId) || assignmentExpired) {
       return;
     }
 
@@ -440,7 +460,7 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
       return;
     }
 
-    if (cardBudgetExpired(submissionId)) {
+    if (cardBudgetExpired(submissionId) || assignmentExpired) {
       return;
     }
     audioNode.currentTime = 0;
@@ -465,18 +485,25 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
       <section className="artist-room-shell">
         <header className="artist-room-header">
           <div>
-            <span className="artist-entry-kicker">Private Event Room</span>
+            <span className="artist-entry-kicker">{isDemo ? "Mock event — simulation only" : "Private Event Room"}</span>
             <h1>{eventRoom?.title || "No active event"}</h1>
             <p>{artist.name}</p>
           </div>
-          <div className="artist-dashboard-links">
+          {isDemo ? <div className="artist-dashboard-links">
+            <Link className="artist-room-link" href="/mock-events">All mock events</Link>
+            <button type="button" className="artist-room-link secondary" onClick={() => {
+              demoWaveRef.current += 1;
+              setMessage("");
+              void loadProtocol();
+            }}>Start next mock card</button>
+          </div> : <div className="artist-dashboard-links">
             <Link className="artist-room-link" href={`/artist/${artist.id}`}>
               Back to dashboard
             </Link>
             <Link className="artist-room-link secondary" href={`/artist/${artist.id}/results`}>
               View results
             </Link>
-          </div>
+          </div>}
         </header>
 
         {message ? <p className="artist-entry-message">{message}</p> : null}
@@ -504,7 +531,7 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
               </article>
             </section>
 
-            <form className="artist-room-panel artist-room-panel-wide" onSubmit={(event) => handleSubmission(event, eventRoom.id, eventRoom.currentRound)}>
+            {!isDemo ? <form className="artist-room-panel artist-room-panel-wide" onSubmit={(event) => handleSubmission(event, eventRoom.id, eventRoom.currentRound)}>
               <h2>Submit your round</h2>
               <label>
                 Track title
@@ -538,7 +565,7 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                     ? "No file submitted for this round yet."
                     : "Submission stays locked until the Eastern start time is reached."}
               </p>
-            </form>
+            </form> : null}
 
             <section className="artist-room-grid">
               <article className="artist-room-panel">
@@ -611,7 +638,7 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                                 );
                               }}
                               onPlay={() => {
-                                if (cardBudgetExpired(matchupSubmission.id)) {
+                                if (cardBudgetExpired(matchupSubmission.id) || assignmentExpired) {
                                   audioRefs.current[matchupSubmission.id]?.pause();
                                   return;
                                 }
@@ -636,6 +663,7 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                                   duration: Number.isFinite(node.duration) ? Math.min(180, node.duration) : 0,
                                 } }));
                               }}
+                              onError={() => setMessage("This track could not load. Try starting a fresh mock card or check your connection.")}
                               preload="metadata"
                               ref={(node) => {
                                 audioRefs.current[matchupSubmission.id] = node;
