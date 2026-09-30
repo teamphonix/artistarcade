@@ -142,6 +142,7 @@ export default function ArtistEventRoomPage() {
   const [cardDeadlineAt, setCardDeadlineAt] = useState<Record<string, number>>({});
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [playingSubmissionId, setPlayingSubmissionId] = useState<string | null>(null);
+  const [audioPositions, setAudioPositions] = useState<Record<string, { position: number; duration: number }>>({});
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
   const assignmentIdRef = useRef<string | null>(null);
 
@@ -154,6 +155,7 @@ export default function ArtistEventRoomPage() {
       setSliders(evenSliders());
       setJudgmentEvents([]);
       setPlayedOnce({});
+      setAudioPositions({});
       setCardDeadlineAt({});
       setPlayingSubmissionId(null);
       audioRefs.current = {};
@@ -616,10 +618,23 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                                 startCardBudget(matchupSubmission.id);
                                 setPlayingSubmissionId(matchupSubmission.id);
                               }}
+                              onLoadedMetadata={(event) => {
+                                const node = event.currentTarget;
+                                setAudioPositions((current) => ({ ...current, [matchupSubmission.id]: {
+                                  position: node.currentTime,
+                                  duration: Number.isFinite(node.duration) ? Math.min(180, node.duration) : 0,
+                                } }));
+                              }}
                               onTimeUpdate={(event) => {
-                                if (cardBudgetExpired(matchupSubmission.id)) {
-                                  event.currentTarget.pause();
+                                const node = event.currentTarget;
+                                if (cardBudgetExpired(matchupSubmission.id) || assignmentExpired || node.currentTime >= 180) {
+                                  node.pause();
+                                  if (node.currentTime > 180) node.currentTime = 180;
                                 }
+                                setAudioPositions((current) => ({ ...current, [matchupSubmission.id]: {
+                                  position: Math.min(180, node.currentTime),
+                                  duration: Number.isFinite(node.duration) ? Math.min(180, node.duration) : 0,
+                                } }));
                               }}
                               preload="metadata"
                               ref={(node) => {
@@ -627,6 +642,29 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                               }}
                               src={matchupSubmission.audioUrl}
                             />
+                            <label style={{ display: "grid", gap: 6, width: "100%" }}>
+                              <span>Track position · {formatBudget((audioPositions[matchupSubmission.id]?.position || 0) * 1000)} / {formatBudget((audioPositions[matchupSubmission.id]?.duration || 0) * 1000)}</span>
+                              <input
+                                aria-label={`Seek in ${matchupSubmission.title}`}
+                                type="range"
+                                min={0}
+                                max={audioPositions[matchupSubmission.id]?.duration || 0}
+                                step={0.1}
+                                value={audioPositions[matchupSubmission.id]?.position || 0}
+                                disabled={cardBudgetExpired(matchupSubmission.id) || assignmentExpired || !audioPositions[matchupSubmission.id]?.duration}
+                                style={{ width: "100%", height: 32, touchAction: "pan-y", accentColor: "#ffd36a" }}
+                                onChange={(event) => {
+                                  const node = audioRefs.current[matchupSubmission.id];
+                                  if (!node || cardBudgetExpired(matchupSubmission.id) || assignmentExpired) return;
+                                  const position = Number(event.target.value);
+                                  node.currentTime = position;
+                                  setAudioPositions((current) => ({ ...current, [matchupSubmission.id]: {
+                                    position,
+                                    duration: current[matchupSubmission.id]?.duration || 0,
+                                  } }));
+                                }}
+                              />
+                            </label>
                             <div className="judge-audio-gate">
                               <button
                                 disabled={cardBudgetExpired(matchupSubmission.id) || assignmentExpired || isBusy}
