@@ -642,6 +642,9 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                                   audioRefs.current[matchupSubmission.id]?.pause();
                                   return;
                                 }
+                                Object.entries(audioRefs.current).forEach(([id, node]) => {
+                                  if (id !== matchupSubmission.id) node?.pause();
+                                });
                                 startCardBudget(matchupSubmission.id);
                                 setPlayingSubmissionId(matchupSubmission.id);
                               }}
