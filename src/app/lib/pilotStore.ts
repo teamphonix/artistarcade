@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
+import type { SliderMap } from "./scoring";
 
 export const ARTISTS_PER_EVENT = 16;
 export const MVP_EVENT_COUNT = 4;
@@ -115,7 +116,7 @@ export type ProtocolJudgmentEvent = {
   tMs: number;
   type: "open" | "slider" | "lock";
   category?: ScoreKey;
-  sliders: Record<ScoreKey, number>;
+  sliders: SliderMap;
   aPct: number;
   bPct: number;
 };
@@ -127,7 +128,7 @@ export type ProtocolJudgment = {
   judgeArtistId: string;
   scores: Record<ScoreKey, number>;
   contestantScores?: Record<string, Record<ScoreKey, number>>;
-  sliders?: Record<ScoreKey, number>;
+  sliders?: SliderMap;
   events?: ProtocolJudgmentEvent[];
   selectedWinnerArtistId: string;
   createdAt: string;

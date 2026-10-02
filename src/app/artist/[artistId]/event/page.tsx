@@ -29,6 +29,7 @@ type Assignment = {
   judgeArtistId: string;
   status: string;
   dueAt: string | null;
+  assignedAt?: string;
 };
 
 type MatchSubmission = {
@@ -62,6 +63,7 @@ type EventSummary = {
 };
 
 type ProtocolPayload = {
+  tournament?: { startedAt: number; revealAt: number; revealed: boolean } | null;
   artists: Artist[];
   events: EventSummary[];
   battles: Battle[];
@@ -156,7 +158,10 @@ export default function ArtistEventRoomPage() {
 
     if (nextAssignmentId !== assignmentIdRef.current) {
       assignmentIdRef.current = nextAssignmentId;
-      assignmentStartedAtRef.current = Date.now();
+      const nextAssignment = data.assignments.find((entry) => entry.id === nextAssignmentId);
+      assignmentStartedAtRef.current = nextAssignment?.assignedAt
+        ? Date.parse(nextAssignment.assignedAt)
+        : nextAssignment?.dueAt ? Date.parse(nextAssignment.dueAt) - 15 * 60_000 : Date.now();
       Object.values(audioRefs.current).forEach((node) => node?.pause());
       setSliders(evenSliders());
       setJudgmentEvents([]);
@@ -210,6 +215,19 @@ export default function ArtistEventRoomPage() {
 
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (isDemo) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      try { await loadProtocol(); }
+      catch { if (!cancelled) setMessage("Connection interrupted. Reconnecting to your FateKeeper assignments…"); }
+      if (!cancelled) timer = setTimeout(() => void poll(), 5000);
+    }
+    timer = setTimeout(() => void poll(), 5000);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [isDemo, loadProtocol]);
 
   async function uploadSubmissionFile(eventId: string, round: number) {
     if (!file) {
@@ -273,7 +291,7 @@ export default function ArtistEventRoomPage() {
   const artist = payload?.artists.find((entry) => entry.id === artistId);
   const eventRoom = payload?.events.find((event) => event.entries.some((entry) => entry.artistId === artistId)) || null;
   const submission = payload?.submissions.find(
-    (entry) => entry.artistId === artistId && entry.eventId === eventRoom?.id && entry.round === eventRoom?.currentRound,
+    (entry) => entry.artistId === artistId && entry.eventId === eventRoom?.id,
   );
   const assignment = payload?.assignments.find((entry) => entry.judgeArtistId === artistId && entry.status === "assigned");
   const battle = payload?.battles.find((entry) => entry.id === assignment?.battleId);
@@ -286,7 +304,6 @@ export default function ArtistEventRoomPage() {
     return payload.submissions.filter(
       (entry) =>
         entry.eventId === battle.eventId &&
-        entry.round === battle.round &&
         (entry.artistId === battle.artistAId || entry.artistId === battle.artistBId),
     );
   }, [payload, battle]);
@@ -555,12 +572,12 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                   onChange={(event) => setDurationSeconds(Number(event.target.value))}
                 />
               </label>
-              <button disabled={isBusy || !eventStarted || eventRoom.phase === "judging" || eventRoom.phase === "complete"} type="submit">
+              <button disabled={isBusy || !eventStarted || eventRoom.phase !== "submission" || eventRoom.currentRound !== 1} type="submit">
                 Upload submission
               </button>
               <p>
                 {submission
-                  ? `Current submission: ${submission.title}`
+                  ? `Your tournament track: ${submission.title}. This same track competes through every round.`
                   : eventStarted
                     ? "No file submitted for this round yet."
                     : "Submission stays locked until the Eastern start time is reached."}
@@ -570,10 +587,11 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
             <section className="artist-room-grid">
               <article className="artist-room-panel">
                 <h2>Standby</h2>
+                {payload.tournament && !payload.tournament.revealed ? <strong>Final reveal in {formatBudget(payload.tournament.revealAt - currentTime)}</strong> : null}
                 <p>
                   {assignment
                     ? "Your judging card is active. Review both tracks and make your decision before the wave expires."
-                    : "Once your file is in, remain on standby. Your judging duty is required for your submission to remain valid."}
+                    : "Remain available for FateKeeper selection. Complete every card assigned to you. Receiving no card carries no penalty. Results stay sealed until the final reveal."}
                 </p>
                 <strong>{assignment ? `Assignment due in ${countdownLabel}` : "No active judging card"}</strong>
               </article>
@@ -585,6 +603,7 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                     <strong>
                       {judgingEvent?.title || "Judging wave"} round {battle.round}
                     </strong>
+                    <p>You have been assigned as a FateKeeper. Their fate is in your hands.</p>
                     <p>
                       The clock started when this wave was distributed. Listen to both tracks all the way through once,
                       then score both contenders across the weighted judging attributes.
