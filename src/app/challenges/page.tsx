@@ -42,6 +42,7 @@ export default function ChallengesPage() {
         <strong>PUT YOUR TALENTS TO THE ULTIMATE TEST.</strong>
         <span>THE NUMBERS DON&apos;T COUNT HERE.</span>
         <span>ONLY IMPACT. ONLY GREATNESS. ONLY LEGENDS.</span>
+        <span>64 ARTISTS. FOUR EVENTS. ONE ORIGINAL TRACK.</span>
       </section>
 
       <section className="bottom-cta challenge-cta" aria-label="Join The Artist Arcade">

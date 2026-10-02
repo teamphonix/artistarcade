@@ -1,26 +1,24 @@
 import { NextResponse } from "next/server";
+import { AccessError, artistState, authorizeAction, type Principal } from "@/app/lib/access";
+import { checkOrigin, requirePrincipal } from "@/app/lib/requestAuth";
+import { StateConflictError } from "@/app/lib/databaseState";
+import { loadState, persistState } from "@/app/lib/protocolPersistence";
+import { autoAdvanceProtocol, lockEventQueue } from "@/app/lib/protocolEngine";
+import { readWorkerHealth, workerIsHealthy, type WorkerHealth } from "@/app/lib/protocolWorker";
+import { advancePilot, pilotClock } from "@/app/lib/tournament";
+import { recordSliderJudgment } from "@/app/lib/recordJudgment";
 import {
   ARTISTS_PER_EVENT,
   BETA_RULES_VERSION,
-  JUDGING_WINDOW_MINUTES,
   SCORE_CATEGORIES,
   SUBMISSION_LIMIT_SECONDS,
   SUBMISSION_WINDOW_HOURS,
-  clampScore,
   eventStandings,
   getEventEntries,
   makeId,
-  readPilotState,
-  resetPilotState,
   scoreBattle,
-  seedPilotState,
-  weightedScore,
-  writePilotState,
-  type ProtocolBattle,
   type ProtocolEntry,
-  type ProtocolJudgment,
   type ProtocolState,
-  type ScoreKey,
 } from "@/app/lib/pilotStore";
 import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { isValidEmail } from "@/app/lib/protocol";
@@ -43,21 +41,6 @@ function addHours(date: Date, hours: number) {
   const next = new Date(date);
   next.setHours(next.getHours() + hours);
   return next.toISOString();
-}
-
-function addMinutes(date: Date, minutes: number) {
-  const next = new Date(date);
-  next.setMinutes(next.getMinutes() + minutes);
-  return next.toISOString();
-}
-
-function shuffle<T>(items: T[]) {
-  const next = [...items];
-  for (let index = next.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
-  }
-  return next;
 }
 
 function defaultNotificationPreferences() {
@@ -97,273 +80,6 @@ function logProtocolEvent(
   });
 }
 
-function getEventParticipants(state: ProtocolState, eventId: string) {
-  return state.entries.filter((entry) => entry.eventId === eventId).map((entry) => entry.artistId);
-}
-
-function getSubmissionForBattle(state: ProtocolState, battle: ProtocolBattle) {
-  const artistASubmission = state.submissions.find(
-    (submission) =>
-      submission.eventId === battle.eventId && submission.artistId === battle.artistAId && submission.round === battle.round,
-  );
-  const artistBSubmission = state.submissions.find(
-    (submission) =>
-      submission.eventId === battle.eventId && submission.artistId === battle.artistBId && submission.round === battle.round,
-  );
-
-  return artistASubmission && artistBSubmission ? { artistASubmission, artistBSubmission } : null;
-}
-
-function getActiveAssignment(state: ProtocolState, judgeArtistId: string) {
-  return state.assignments.find(
-    (assignment) => assignment.judgeArtistId === judgeArtistId && assignment.status === "assigned",
-  );
-}
-
-function resolveBattleWinner(state: ProtocolState, battleId: string, winnerArtistId: string, completedAt: string) {
-  const battle = state.battles.find((entry) => entry.id === battleId);
-  if (!battle || ![battle.artistAId, battle.artistBId].includes(winnerArtistId)) {
-    return;
-  }
-
-  battle.winnerArtistId = winnerArtistId;
-  battle.status = "complete";
-  battle.completedAt = completedAt;
-
-  const loserId = battle.artistAId === winnerArtistId ? battle.artistBId : battle.artistAId;
-  const winner = state.artists.find((artist) => artist.id === winnerArtistId);
-  const loser = state.artists.find((artist) => artist.id === loserId);
-  const winnerEntry = state.entries.find((entry) => entry.eventId === battle.eventId && entry.artistId === winnerArtistId);
-  const loserEntry = state.entries.find((entry) => entry.eventId === battle.eventId && entry.artistId === loserId);
-
-  if (winner) {
-    winner.status = "advanced";
-  }
-
-  if (winnerEntry) {
-    winnerEntry.status = "active";
-  }
-
-  if (loser) {
-    loser.status = "eliminated";
-  }
-
-  if (loserEntry) {
-    loserEntry.status = "eliminated";
-  }
-}
-
-function autoResolveBattle(state: ProtocolState, battleId: string) {
-  const battle = state.battles.find((entry) => entry.id === battleId);
-  if (!battle || battle.status === "complete") {
-    return;
-  }
-
-  const pickedWinner = Math.random() >= 0.5 ? battle.artistAId : battle.artistBId;
-  resolveBattleWinner(state, battle.id, pickedWinner, new Date().toISOString());
-}
-
-function tryAdvanceEvent(state: ProtocolState, eventId: string) {
-  const event = state.events.find((entry) => entry.id === eventId);
-  if (!event) {
-    return;
-  }
-
-  if (event.phase === "complete" || event.winnerArtistId) {
-    return;
-  }
-
-  const roundBattles = state.battles.filter((battle) => battle.eventId === eventId && battle.round === event.currentRound);
-  if (roundBattles.length === 0 || roundBattles.some((battle) => battle.status !== "complete" || !battle.winnerArtistId)) {
-    return;
-  }
-
-  const winners = roundBattles.map((battle) => battle.winnerArtistId).filter(Boolean) as string[];
-  if (winners.length === 1) {
-    const winner = state.artists.find((artist) => artist.id === winners[0]);
-    if (winner) {
-      winner.status = "winner";
-      winner.walletCents += event.desiredPrizeCents;
-      winner.rewardCents += event.desiredPrizeCents;
-    }
-
-    const gross = state.entries
-      .filter((entry) => entry.eventId === eventId)
-      .reduce((sum, entry) => sum + entry.paidCents, 0);
-
-    event.winnerArtistId = winners[0];
-    event.companyRevenueCents = Math.max(0, gross - event.desiredPrizeCents);
-    event.phase = "complete";
-    event.submissionDeadline = null;
-    event.judgingDeadline = null;
-
-    state.walletLedger.push({
-      id: makeId(),
-      artistId: winners[0],
-      eventId,
-      amountCents: event.desiredPrizeCents,
-      type: "prize",
-      note: `Winner prize for ${event.title}`,
-      createdAt: new Date().toISOString(),
-    });
-    state.walletLedger.push({
-      id: makeId(),
-      artistId: null,
-      eventId,
-      amountCents: event.companyRevenueCents,
-      type: "company_revenue",
-      note: `Company remainder for ${event.title}`,
-      createdAt: new Date().toISOString(),
-    });
-    logProtocolEvent(state, "event_complete", `${event.title} completed. Winner: ${winner?.name || winners[0]}.`, {
-      eventId,
-      artistId: winners[0],
-      metadata: {
-        prizeCents: event.desiredPrizeCents,
-        companyRevenueCents: event.companyRevenueCents,
-      },
-    });
-    return;
-  }
-
-  event.currentRound += 1;
-  event.phase = "submission";
-  event.submissionDeadline = addHours(new Date(), SUBMISSION_WINDOW_HOURS);
-  event.judgingDeadline = null;
-  createRoundBattles(state, event.id, event.currentRound, winners);
-  logProtocolEvent(state, "round_advanced", `${event.title} advanced to round ${event.currentRound}.`, {
-    eventId,
-    metadata: { round: event.currentRound, advancingArtistIds: winners },
-  });
-}
-
-function resolveExpiredAssignments(state: ProtocolState) {
-  let changed = false;
-
-  state.assignments
-    .filter((assignment) => assignment.status === "assigned" && assignment.dueAt && new Date(assignment.dueAt) < new Date())
-    .forEach((assignment) => {
-      assignment.status = "expired";
-      autoResolveBattle(state, assignment.battleId);
-      const battle = state.battles.find((entry) => entry.id === assignment.battleId);
-      if (battle) {
-        tryAdvanceEvent(state, battle.eventId);
-      }
-      logProtocolEvent(state, "judging_expired", `Judging assignment expired and battle was auto-resolved.`, {
-        eventId: battle?.eventId || null,
-        artistId: assignment.judgeArtistId,
-        metadata: { assignmentId: assignment.id, battleId: assignment.battleId },
-      });
-      changed = true;
-    });
-
-  return changed;
-}
-
-function canJudgeBattle(state: ProtocolState, judgeArtistId: string, battle: ProtocolBattle) {
-  if (battle.status === "complete") {
-    return false;
-  }
-
-  if (battle.artistAId === judgeArtistId || battle.artistBId === judgeArtistId) {
-    return false;
-  }
-
-  const sameArena = getEventParticipants(state, battle.eventId).includes(judgeArtistId);
-  if (sameArena) {
-    return false;
-  }
-
-  if (!getSubmissionForBattle(state, battle)) {
-    return false;
-  }
-
-  if (getActiveAssignment(state, judgeArtistId)) {
-    return false;
-  }
-
-  const judgedAlready = state.assignments.some(
-    (assignment) => assignment.judgeArtistId === judgeArtistId && assignment.battleId === battle.id,
-  );
-  return !judgedAlready;
-}
-
-function distributeJudgingWave(state: ProtocolState, eventId: string) {
-  const event = state.events.find((entry) => entry.id === eventId);
-  if (!event) {
-    return { distributed: 0 };
-  }
-
-  const waveStartedAt = new Date().toISOString();
-  const waveDueAt = addMinutes(new Date(waveStartedAt), JUDGING_WINDOW_MINUTES);
-  const roundBattles = shuffle(
-    state.battles.filter(
-      (battle) =>
-        battle.eventId === eventId &&
-        battle.round === event.currentRound &&
-        battle.status !== "complete" &&
-        !!getSubmissionForBattle(state, battle) &&
-        !state.assignments.some((assignment) => assignment.battleId === battle.id && assignment.status === "assigned"),
-    ),
-  );
-
-  const usedJudges = new Set<string>();
-  let distributed = 0;
-
-  roundBattles.forEach((battle) => {
-    const eligibleJudges = shuffle(
-      state.artists.filter((artist) => {
-        if (usedJudges.has(artist.id)) {
-          return false;
-        }
-
-        if (artist.status === "winner" || artist.status === "eliminated") {
-          return false;
-        }
-
-        if (getActiveAssignment(state, artist.id)) {
-          return false;
-        }
-
-        return canJudgeBattle(state, artist.id, battle);
-      }),
-    );
-
-    const judge = eligibleJudges[0];
-    if (!judge) {
-      return;
-    }
-
-    state.assignments.push({
-      id: makeId(),
-      battleId: battle.id,
-      judgeArtistId: judge.id,
-      status: "assigned",
-      assignedAt: waveStartedAt,
-      openedAt: waveStartedAt,
-      dueAt: waveDueAt,
-      completedAt: null,
-    });
-
-    battle.status = "judging";
-    judge.status = "judging";
-    usedJudges.add(judge.id);
-    distributed += 1;
-    logProtocolEvent(state, "judge_assigned", `${judge.name} assigned to judge battle ${battle.slot}.`, {
-      eventId,
-      artistId: judge.id,
-      metadata: { battleId: battle.id, round: battle.round, dueAt: waveDueAt },
-    });
-  });
-
-  if (distributed > 0) {
-    event.phase = "judging";
-    event.judgingDeadline = waveDueAt;
-  }
-
-  return { distributed };
-}
-
 function buildNotifications(state: ProtocolState) {
   const now = new Date().toISOString();
   const notifications: Array<{
@@ -401,7 +117,7 @@ function buildNotifications(state: ProtocolState) {
         eventId: event.id,
         level: "action",
         title: `${event.title} is ready to lock`,
-        body: "The queue has 16 paid entries. The protocol can lock the event and open submissions.",
+        body: "Event entries are ready. The protocol can open the submission window.",
         actionHref: "/host",
         createdAt: event.queueClosedAt || now,
       });
@@ -468,13 +184,13 @@ function buildNotifications(state: ProtocolState) {
           eventId: event.id,
           level: "info",
           title: "Entry confirmed",
-          body: `${event.title} has your $1 entry. The queue is ${entries.length}/16. Your event room will show the next live step when the protocol opens it.`,
+          body: `Your entry in ${event.title} is confirmed. Your event room will show the challenge and submission deadline when they open.`,
           actionHref: `/artist/${artist.id}/event`,
           createdAt: entry.joinedAt,
         });
       }
 
-      if (event.phase === "submission" && activeRoundArtistIds.has(artist.id) && !artistSubmission) {
+      if (event.phase === "submission" && !artistSubmission) {
         notifications.push({
           id: `artist-${artist.id}-${event.id}-submit-round-${event.currentRound}`,
           audience: "artist",
@@ -482,7 +198,7 @@ function buildNotifications(state: ProtocolState) {
           eventId: event.id,
           level: "action",
           title: "Submission window open",
-          body: `Round ${event.currentRound} is live for ${event.title}. Upload your track before the deadline.`,
+          body: `The challenge is open for ${event.title}. Submit your one tournament track before the deadline.`,
           actionHref: `/artist/${artist.id}/event`,
           createdAt: event.queueClosedAt || now,
         });
@@ -496,7 +212,7 @@ function buildNotifications(state: ProtocolState) {
           eventId: event.id,
           level: "success",
           title: "Submission received",
-          body: `${artistSubmission.title} is locked for round ${event.currentRound}. Stand by for judging.`,
+          body: `${artistSubmission.title} is your tournament track. Stay available for FateKeeper duties.`,
           actionHref: `/artist/${artist.id}/event`,
           createdAt: artistSubmission.submittedAt,
         });
@@ -509,8 +225,8 @@ function buildNotifications(state: ProtocolState) {
           artistId: artist.id,
           eventId: event.id,
           level: "action",
-          title: "Judging card live",
-          body: "Your cross-event scorecard is available. Listen, score both artists, and submit before the timer expires.",
+          title: "You have been assigned as a FateKeeper",
+          body: "Their fate is in your hands. Listen, score both artists, and lock your judgment before the 15-minute deadline.",
           actionHref: `/artist/${artist.id}/event`,
           createdAt: artistAssignment.openedAt || artistAssignment.assignedAt,
         });
@@ -551,7 +267,7 @@ function buildNotifications(state: ProtocolState) {
   return notifications.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-function buildBetaReadiness(state: ProtocolState) {
+function buildBetaReadiness(state: ProtocolState, workerHealth: WorkerHealth | null = null) {
   const usesSupabase = Boolean(getSupabaseAdmin());
   const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
   const storageConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SUBMISSIONS_BUCKET);
@@ -610,8 +326,10 @@ function buildBetaReadiness(state: ProtocolState) {
     {
       id: "automation",
       label: "Autonomous tick",
-      status: cronConfigured ? "ready" : "warning",
-      detail: cronConfigured ? "Cron secret is configured for protected protocol ticks." : "Cron secret is missing. Manual/API ticks may still work.",
+      status: cronConfigured && workerIsHealthy(workerHealth) ? "ready" : "warning",
+      detail: !cronConfigured ? "Worker secret is missing." : workerIsHealthy(workerHealth)
+        ? `Background worker last succeeded at ${workerHealth!.last_success_at}.`
+        : "Background worker has no recent successful run. Verify the deployed schedule and worker logs.",
     },
     {
       id: "audit",
@@ -635,7 +353,7 @@ function buildBetaReadiness(state: ProtocolState) {
       id: "dry-run",
       label: "End-to-end dry run",
       status: completedDryRun ? "ready" : "warning",
-      detail: completedDryRun ? "At least one event completed with a prize ledger." : "Run one complete 16-artist production-style test before invites.",
+      detail: completedDryRun ? "At least one event completed with a prize ledger." : "Rehearse a complete 64-artist, four-event pilot before invites.",
     },
   ] as const;
   const blocked = checks.filter((check) => check.status === "blocked").length;
@@ -650,7 +368,7 @@ function buildBetaReadiness(state: ProtocolState) {
   };
 }
 
-function summarize(state: ProtocolState) {
+function summarize(state: ProtocolState, workerHealth: WorkerHealth | null = null) {
   const events = state.events.map((event) => {
     const entries = getEventEntries(state, event.id);
     const battles = state.battles.filter((battle) => battle.eventId === event.id);
@@ -678,6 +396,7 @@ function summarize(state: ProtocolState) {
   const scoredBattles = state.battles.map((battle) => scoreBattle(state, battle.id)).filter(Boolean);
 
   return {
+    tournament: pilotClock(state),
     settings: state.settings,
     artists: state.artists.map((artist) => ({
       ...artist,
@@ -693,7 +412,8 @@ function summarize(state: ProtocolState) {
     judgmentEvents: state.judgmentEvents || [],
     walletLedger: state.walletLedger,
     notifications: buildNotifications(state),
-    betaReadiness: buildBetaReadiness(state),
+    betaReadiness: buildBetaReadiness(state, workerHealth),
+    workerHealth,
     auditLog: [...(state.auditLog || [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100),
     scoredBattles,
     scoreCategories: SCORE_CATEGORIES,
@@ -714,520 +434,45 @@ function summarize(state: ProtocolState) {
   };
 }
 
-function createRoundBattles(state: ProtocolState, eventId: string, round: number, artistIds: string[]) {
-  const now = new Date().toISOString();
-  const createdBattles: ProtocolBattle[] = [];
-
-  for (let index = 0; index < artistIds.length; index += 2) {
-    const artistAId = artistIds[index];
-    const artistBId = artistIds[index + 1];
-
-    if (!artistAId || !artistBId) {
-      continue;
-    }
-
-    const exists = state.battles.some(
-      (battle) =>
-        battle.eventId === eventId &&
-        battle.round === round &&
-        ((battle.artistAId === artistAId && battle.artistBId === artistBId) ||
-          (battle.artistAId === artistBId && battle.artistBId === artistAId)),
-    );
-
-    if (!exists) {
-      createdBattles.push({
-        id: makeId(),
-        eventId,
-        round,
-        slot: Math.floor(index / 2) + 1,
-        artistAId,
-        artistBId,
-        status: "pending",
-        winnerArtistId: null,
-        createdAt: now,
-        completedAt: null,
-      });
-    }
-  }
-
-  state.battles.push(...createdBattles);
-}
-
-function lockEventQueue(state: ProtocolState, eventId: string) {
-  const event = state.events.find((entry) => entry.id === eventId);
-  const entries = state.entries.filter((entry) => entry.eventId === eventId).sort((a, b) => a.seed - b.seed);
-
-  if (!event || event.phase !== "queue" || entries.length !== ARTISTS_PER_EVENT) {
-    return false;
-  }
-
-  event.phase = "submission";
-  const scheduledStart = event.queueClosedAt ? new Date(event.queueClosedAt) : new Date();
-  event.queueClosedAt = scheduledStart.toISOString();
-  event.submissionDeadline = event.submissionDeadline || addHours(scheduledStart, SUBMISSION_WINDOW_HOURS);
-  entries.forEach((entry) => {
-    entry.status = "active";
-    const artist = state.artists.find((savedArtist) => savedArtist.id === entry.artistId);
-    if (artist) {
-      artist.status = "queued";
-    }
-  });
-  createRoundBattles(
-    state,
-    event.id,
-    1,
-    entries.map((entry) => entry.artistId),
-  );
-  logProtocolEvent(state, "queue_locked", `${event.title} queue locked at ${entries.length} artists.`, {
-    eventId: event.id,
-    metadata: {
-      submissionDeadline: event.submissionDeadline,
-      artistIds: entries.map((entry) => entry.artistId),
-    },
-  });
-
-  return true;
-}
-
-function openJudgingIfReady(state: ProtocolState, eventId: string) {
-  const event = state.events.find((entry) => entry.id === eventId);
-  if (!event || event.phase !== "submission") {
-    return false;
-  }
-
-  const activeRoundArtists = state.battles
-    .filter((battle) => battle.eventId === eventId && battle.round === event.currentRound)
-    .flatMap((battle) => [battle.artistAId, battle.artistBId]);
-
-  if (activeRoundArtists.length === 0) {
-    return false;
-  }
-
-  const allRoundSubmissionsReady = activeRoundArtists.every((roundArtistId) =>
-    state.submissions.some(
-      (savedSubmission) =>
-        savedSubmission.eventId === eventId &&
-        savedSubmission.artistId === roundArtistId &&
-        savedSubmission.round === event.currentRound,
-    ),
-  );
-
-  if (!allRoundSubmissionsReady) {
-    return false;
-  }
-
-  event.phase = "judging";
-  event.judgingDeadline = addMinutes(new Date(), JUDGING_WINDOW_MINUTES);
-  distributeJudgingWave(state, eventId);
-  logProtocolEvent(state, "judging_opened", `${event.title} judging opened for round ${event.currentRound}.`, {
-    eventId,
-    metadata: {
-      round: event.currentRound,
-      judgingDeadline: event.judgingDeadline,
-    },
-  });
-  return true;
-}
-
-function autoAdvanceProtocol(state: ProtocolState) {
-  let changed = false;
-
-  state.events.forEach((event) => {
-    if (lockEventQueue(state, event.id)) {
-      changed = true;
-    }
-
-    if (openJudgingIfReady(state, event.id)) {
-      changed = true;
-    }
-  });
-
-  if (resolveExpiredAssignments(state)) {
-    changed = true;
-  }
-
-  state.events.forEach((event) => {
-    const beforePhase = event.phase;
-    const beforeRound = event.currentRound;
-    const beforeWinner = event.winnerArtistId;
-    tryAdvanceEvent(state, event.id);
-    if (event.phase !== beforePhase || event.currentRound !== beforeRound || event.winnerArtistId !== beforeWinner) {
-      changed = true;
-    }
-  });
-
-  return changed;
-}
-
-async function readSupabaseState() {
-  const supabase = getSupabaseAdmin();
-  if (!supabase) {
-    return readPilotState();
-  }
-
-  const [
-    artistsResult,
-    eventsResult,
-    entriesResult,
-    submissionsResult,
-    battlesResult,
-    assignmentsResult,
-    judgmentsResult,
-    walletLedgerResult,
-    auditLogResult,
-  ] = await Promise.all([
-    supabase.from("protocol_artists").select("*").order("created_at", { ascending: true }),
-    supabase.from("protocol_events").select("*").order("queue_opened_at", { ascending: true }),
-    supabase.from("protocol_entries").select("*").order("joined_at", { ascending: true }),
-    supabase.from("protocol_submissions").select("*").order("submitted_at", { ascending: true }),
-    supabase.from("protocol_battles").select("*").order("created_at", { ascending: true }),
-    supabase.from("protocol_assignments").select("*").order("assigned_at", { ascending: true }),
-    supabase.from("protocol_judgments").select("*").order("created_at", { ascending: true }),
-    supabase.from("protocol_wallet_ledger").select("*").order("created_at", { ascending: true }),
-    supabase.from("protocol_audit_log").select("*").order("created_at", { ascending: true }),
-  ]);
-
-  const error =
-    artistsResult.error ||
-    eventsResult.error ||
-    entriesResult.error ||
-    submissionsResult.error ||
-    battlesResult.error ||
-    assignmentsResult.error ||
-    judgmentsResult.error ||
-    walletLedgerResult.error ||
-    auditLogResult.error;
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const state: ProtocolState = {
-    settings: seedPilotState.settings,
-    artists: (artistsResult.data || []).map((artist) => ({
-      id: artist.id,
-      name: artist.name,
-      email: artist.email,
-      walletCents: artist.wallet_cents,
-      rewardCents: artist.reward_cents,
-      status: artist.status,
-      notificationPreferences: artist.notification_preferences || defaultNotificationPreferences(),
-      betaRulesAcceptedAt: artist.beta_rules_accepted_at,
-      betaRulesVersion: artist.beta_rules_version,
-      createdAt: artist.created_at,
-    })),
-    events: (eventsResult.data || []).map((event) => ({
-      id: event.id,
-      title: event.title,
-      eventType: event.event_type,
-      creatorArtistId: event.creator_artist_id,
-      desiredPrizeCents: event.desired_prize_cents,
-      entryFeeCents: event.entry_fee_cents,
-      challengeTitle: event.challenge_title,
-      challengeDescription: event.challenge_description,
-      challengeAudioUrl: event.challenge_audio_url,
-      phase: event.phase,
-      currentRound: event.current_round,
-      queueOpenedAt: event.queue_opened_at,
-      queueClosedAt: event.queue_closed_at,
-      submissionDeadline: event.submission_deadline,
-      judgingDeadline: event.judging_deadline,
-      winnerArtistId: event.winner_artist_id,
-      companyRevenueCents: event.company_revenue_cents,
-    })),
-    entries: (entriesResult.data || []).map((entry) => ({
-      id: entry.id,
-      eventId: entry.event_id,
-      artistId: entry.artist_id,
-      seed: entry.seed,
-      paidCents: entry.paid_cents,
-      status: entry.status,
-      joinedAt: entry.joined_at,
-    })),
-    submissions: (submissionsResult.data || []).map((submission) => ({
-      id: submission.id,
-      eventId: submission.event_id,
-      artistId: submission.artist_id,
-      round: submission.round,
-      title: submission.title,
-      audioUrl: submission.audio_url,
-      durationSeconds: submission.duration_seconds,
-      submittedAt: submission.submitted_at,
-    })),
-    battles: (battlesResult.data || []).map((battle) => ({
-      id: battle.id,
-      eventId: battle.event_id,
-      round: battle.round,
-      slot: battle.slot,
-      artistAId: battle.artist_a_id,
-      artistBId: battle.artist_b_id,
-      status: battle.status,
-      winnerArtistId: battle.winner_artist_id,
-      createdAt: battle.created_at,
-      completedAt: battle.completed_at,
-    })),
-    assignments: (assignmentsResult.data || []).map((assignment) => ({
-      id: assignment.id,
-      battleId: assignment.battle_id,
-      judgeArtistId: assignment.judge_artist_id,
-      status: assignment.status,
-      assignedAt: assignment.assigned_at,
-      openedAt: assignment.opened_at,
-      dueAt: assignment.due_at,
-      completedAt: assignment.completed_at,
-    })),
-    judgments: (judgmentsResult.data || []).map((judgment) => ({
-      id: judgment.id,
-      assignmentId: judgment.assignment_id,
-      battleId: judgment.battle_id,
-      judgeArtistId: judgment.judge_artist_id,
-      scores: {
-        lyrics: judgment.lyrics,
-        delivery: judgment.delivery,
-        originality: judgment.originality,
-        flow: judgment.flow,
-        impact: judgment.impact,
-      },
-      contestantScores: judgment.contestant_scores || undefined,
-      selectedWinnerArtistId: judgment.selected_winner_artist_id,
-      createdAt: judgment.created_at,
-    })),
-    walletLedger: (walletLedgerResult.data || []).map((entry) => ({
-      id: entry.id,
-      artistId: entry.artist_id,
-      eventId: entry.event_id,
-      amountCents: entry.amount_cents,
-      type: entry.type,
-      note: entry.note,
-      createdAt: entry.created_at,
-    })),
-    auditLog: (auditLogResult.data || []).map((entry) => ({
-      id: entry.id,
-      eventId: entry.event_id,
-      artistId: entry.artist_id,
-      action: entry.action,
-      note: entry.note,
-      metadata: entry.metadata || {},
-      createdAt: entry.created_at,
-    })),
+function visiblePayload(state: ProtocolState, principal: Principal, workerHealth: WorkerHealth | null = null) {
+  if (principal.host) return summarize(state, workerHealth);
+  const payload = summarize(artistState(state, principal.email));
+  const own = state.artists.find(a => a.email.toLowerCase() === principal.email);
+  return { ...payload, tournament: pilotClock(state), notifications: payload.notifications.filter(n => n.audience === "artist" && n.artistId === own?.id), auditLog: [], betaReadiness: null,
+    events: payload.events.map(event => ({ ...event,
+      queuedCount: state.entries.filter(e => e.eventId === event.id).length,
+      openSlots: ARTISTS_PER_EVENT - state.entries.filter(e => e.eventId === event.id).length,
+      standings: pilotClock(state)?.revealed ? event.standings : [] })),
+    totals: { artists: state.artists.length, events: state.events.length, eventCapacity: state.events.length * ARTISTS_PER_EVENT },
   };
-
-  if (state.artists.length === 0 && state.events.length === 0) {
-    await writeSupabaseState(seedPilotState);
-    return structuredClone(seedPilotState);
-  }
-
-  return state;
 }
 
-async function writeSupabaseState(state: ProtocolState) {
-  const supabase = getSupabaseAdmin();
-  if (!supabase) {
-    await writePilotState(state);
-    return;
-  }
-
-  const deleteAll = async (table: string, timestampColumn: string) => {
-    const { error } = await supabase.from(table).delete().gte(timestampColumn, "1900-01-01");
-    if (error) {
-      throw new Error(error.message);
+async function readPayload(principal: Principal) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const state = await loadState();
+      if (autoAdvanceProtocol(state)) await persistState(state);
+      return visiblePayload(state, principal, principal.host ? await readWorkerHealth() : null);
+    } catch (error) {
+      if (!(error instanceof StateConflictError) || attempt === 2) throw error;
     }
-  };
-
-  await deleteAll("protocol_judgments", "created_at");
-  await deleteAll("protocol_audit_log", "created_at");
-  await deleteAll("protocol_assignments", "assigned_at");
-  await deleteAll("protocol_battles", "created_at");
-  await deleteAll("protocol_submissions", "submitted_at");
-  await deleteAll("protocol_entries", "joined_at");
-  await deleteAll("protocol_wallet_ledger", "created_at");
-  await deleteAll("protocol_events", "queue_opened_at");
-  await deleteAll("protocol_artists", "created_at");
-
-  const insert = async (table: string, rows: Record<string, unknown>[]) => {
-    if (rows.length === 0) {
-      return;
-    }
-
-    const { error } = await supabase.from(table).insert(rows);
-    if (error) {
-      throw new Error(error.message);
-    }
-  };
-
-  await insert(
-    "protocol_artists",
-    state.artists.map((artist) => ({
-      id: artist.id,
-      name: artist.name,
-      email: artist.email,
-      stripe_customer_id: null,
-      wallet_cents: artist.walletCents,
-      reward_cents: artist.rewardCents,
-      status: artist.status,
-      notification_preferences: artist.notificationPreferences || defaultNotificationPreferences(),
-      beta_rules_accepted_at: artist.betaRulesAcceptedAt || null,
-      beta_rules_version: artist.betaRulesVersion || null,
-      created_at: artist.createdAt,
-    })),
-  );
-
-  await insert(
-    "protocol_events",
-    state.events.map((event) => ({
-      id: event.id,
-      title: event.title,
-      event_type: event.eventType,
-      creator_artist_id: event.creatorArtistId,
-      desired_prize_cents: event.desiredPrizeCents,
-      entry_fee_cents: event.entryFeeCents,
-      challenge_title: event.challengeTitle,
-      challenge_description: event.challengeDescription,
-      challenge_audio_url: event.challengeAudioUrl,
-      phase: event.phase,
-      current_round: event.currentRound,
-      queue_opened_at: event.queueOpenedAt,
-      queue_closed_at: event.queueClosedAt,
-      submission_deadline: event.submissionDeadline,
-      judging_deadline: event.judgingDeadline,
-      winner_artist_id: event.winnerArtistId,
-      company_revenue_cents: event.companyRevenueCents,
-    })),
-  );
-
-  await insert(
-    "protocol_entries",
-    state.entries.map((entry) => ({
-      id: entry.id,
-      event_id: entry.eventId,
-      artist_id: entry.artistId,
-      seed: entry.seed,
-      paid_cents: entry.paidCents,
-      status: entry.status,
-      joined_at: entry.joinedAt,
-    })),
-  );
-
-  await insert(
-    "protocol_submissions",
-    state.submissions.map((submission) => ({
-      id: submission.id,
-      event_id: submission.eventId,
-      artist_id: submission.artistId,
-      round: submission.round,
-      title: submission.title,
-      audio_url: submission.audioUrl,
-      duration_seconds: submission.durationSeconds,
-      submitted_at: submission.submittedAt,
-    })),
-  );
-
-  await insert(
-    "protocol_battles",
-    state.battles.map((battle) => ({
-      id: battle.id,
-      event_id: battle.eventId,
-      round: battle.round,
-      slot: battle.slot,
-      artist_a_id: battle.artistAId,
-      artist_b_id: battle.artistBId,
-      status: battle.status,
-      winner_artist_id: battle.winnerArtistId,
-      created_at: battle.createdAt,
-      completed_at: battle.completedAt,
-    })),
-  );
-
-  await insert(
-    "protocol_assignments",
-    state.assignments.map((assignment) => ({
-      id: assignment.id,
-      battle_id: assignment.battleId,
-      judge_artist_id: assignment.judgeArtistId,
-      status: assignment.status,
-      assigned_at: assignment.assignedAt,
-      opened_at: assignment.openedAt,
-      due_at: assignment.dueAt,
-      completed_at: assignment.completedAt,
-    })),
-  );
-
-  await insert(
-    "protocol_judgments",
-    state.judgments.map((judgment) => ({
-      id: judgment.id,
-      assignment_id: judgment.assignmentId,
-      battle_id: judgment.battleId,
-      judge_artist_id: judgment.judgeArtistId,
-      lyrics: judgment.scores.lyrics,
-      delivery: judgment.scores.delivery,
-      originality: judgment.scores.originality,
-      flow: judgment.scores.flow,
-      impact: judgment.scores.impact,
-      contestant_scores: judgment.contestantScores || null,
-      selected_winner_artist_id: judgment.selectedWinnerArtistId,
-      created_at: judgment.createdAt,
-    })),
-  );
-
-  await insert(
-    "protocol_wallet_ledger",
-    state.walletLedger.map((entry) => ({
-      id: entry.id,
-      artist_id: entry.artistId,
-      event_id: entry.eventId,
-      amount_cents: entry.amountCents,
-      type: entry.type,
-      note: entry.note,
-      created_at: entry.createdAt,
-    })),
-  );
-
-  await insert(
-    "protocol_audit_log",
-    (state.auditLog || []).map((entry) => ({
-      id: entry.id,
-      event_id: entry.eventId,
-      artist_id: entry.artistId,
-      action: entry.action,
-      note: entry.note,
-      metadata: entry.metadata,
-      created_at: entry.createdAt,
-    })),
-  );
-}
-
-async function loadState() {
-  return getSupabaseAdmin() ? readSupabaseState() : readPilotState();
-}
-
-async function persistState(state: ProtocolState) {
-  if (getSupabaseAdmin()) {
-    await writeSupabaseState(state);
-    return;
   }
-
-  await writePilotState(state);
+  throw new StateConflictError();
 }
 
-async function readPayload() {
-  const state = await loadState();
-  const changed = autoAdvanceProtocol(state);
-  if (changed) {
-    await persistState(state);
-  }
-  return summarize(state);
-}
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    return NextResponse.json(await readPayload());
+    const principal = await requirePrincipal(request);
+    return NextResponse.json(await readPayload(principal), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Protocol read failed." }, { status: 500 });
+    return NextResponse.json({ error: error instanceof AccessError ? error.message : "Protocol read failed." }, { status: error instanceof AccessError ? error.status : error instanceof StateConflictError ? 409 : 500 });
   }
 }
 
 export async function POST(request: Request) {
+  let principal: Principal;
+  try { checkOrigin(request); principal = await requirePrincipal(request); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Sign-in failed." }, { status: error instanceof AccessError ? error.status : 500 }); }
   const body = await request.json().catch(() => null);
   const action = body?.action as ProtocolAction | undefined;
 
@@ -1235,25 +480,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing protocol action." }, { status: 400 });
   }
 
-  if (action === "reset") {
-    const nextState = structuredClone(seedPilotState);
-    if (getSupabaseAdmin()) {
-      await writeSupabaseState(nextState);
-    } else {
-      await resetPilotState();
-    }
-    return NextResponse.json(await readPayload());
+  if ((process.env.NODE_ENV === "production" || getSupabaseAdmin()) && ["reset", "deposit", "withdraw"].includes(action)) {
+    return NextResponse.json({ error: "Manual resets and balance changes are disabled for persisted USD accounts." }, { status: 403 });
   }
 
-  const state = await loadState();
-  autoAdvanceProtocol(state);
-
   try {
+    const state = await loadState();
+    authorizeAction(state, principal, action, body);
+    autoAdvanceProtocol(state);
     if (action === "upsertArtist") {
       const name = String(body?.name || "").trim();
       const email = String(body?.email || "").trim().toLowerCase();
 
-      if (name.length < 2 || !isValidEmail(email)) {
+      if (name.length < 2 || name.length > 100 || !isValidEmail(email)) {
         return NextResponse.json({ error: "Name and valid email are required." }, { status: 400 });
       }
 
@@ -1423,7 +662,7 @@ export async function POST(request: Request) {
       }
 
       if (eventEntries.length >= ARTISTS_PER_EVENT) {
-        return NextResponse.json({ error: "This event already has 16 artists." }, { status: 409 });
+        return NextResponse.json({ error: "This event is full. Choose another open event." }, { status: 409 });
       }
 
       if (state.entries.some((entry) => entry.artistId === artistId)) {
@@ -1435,7 +674,7 @@ export async function POST(request: Request) {
       }
 
       if (artist.betaRulesVersion !== BETA_RULES_VERSION || !artist.betaRulesAcceptedAt) {
-        if (!body?.acceptBetaRules) {
+        if (body?.acceptBetaRules !== true) {
           return NextResponse.json({ error: "Accept the beta rules before joining a paid event." }, { status: 409 });
         }
 
@@ -1482,7 +721,7 @@ export async function POST(request: Request) {
     if (action === "closeQueue") {
       const eventId = String(body?.eventId || "");
       if (!lockEventQueue(state, eventId)) {
-        return NextResponse.json({ error: "Queue needs exactly 16 artists before it closes." }, { status: 409 });
+        return NextResponse.json({ error: "Event entries are not ready to close yet." }, { status: 409 });
       }
     }
 
@@ -1503,8 +742,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Submission must be 3 minutes or less." }, { status: 409 });
       }
 
+      if (event.phase !== "submission" || event.currentRound !== 1 || pilotClock(state)
+        || (event.queueClosedAt && Date.parse(event.queueClosedAt) > Date.now())
+        || (event.submissionDeadline && Date.parse(event.submissionDeadline) <= Date.now())) {
+        return NextResponse.json({ error: "The single-track submission window is closed." }, { status: 409 });
+      }
+
       const existing = state.submissions.find(
-        (submission) => submission.eventId === eventId && submission.artistId === artistId && submission.round === event.currentRound,
+        (submission) => submission.eventId === eventId && submission.artistId === artistId,
       );
 
       const nextSubmission = {
@@ -1530,7 +775,7 @@ export async function POST(request: Request) {
         metadata: { round: event.currentRound, submissionId: nextSubmission.id, title },
       });
 
-      openJudgingIfReady(state, eventId);
+      advancePilot(state);
     }
 
     if (action === "generateJudgeAssignments") {
@@ -1541,10 +786,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Event is required." }, { status: 400 });
       }
 
-      const { distributed } = distributeJudgingWave(state, eventId);
-      if (distributed === 0) {
-        return NextResponse.json({ error: "No eligible judging wave could be distributed yet." }, { status: 409 });
-      }
+      autoAdvanceProtocol(state);
     }
 
     if (action === "judge") {
@@ -1560,99 +802,30 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Battle is invalid." }, { status: 400 });
       }
 
-      if (assignment.dueAt && new Date() > new Date(assignment.dueAt)) {
-        assignment.status = "expired";
+      if (!["assigned", "opened"].includes(assignment.status) || battle.status === "complete") {
+        return NextResponse.json({ error: "This card has already been locked or resolved." }, { status: 409 });
+      }
+      if (!assignment.dueAt || Date.now() >= Date.parse(assignment.dueAt)) {
         return NextResponse.json({ error: "This 15-minute judging window expired." }, { status: 409 });
       }
-
-      const battleArtistIds = [battle.artistAId, battle.artistBId];
-      const { normalizeSliders, winnerFromAggregate } = await import("@/app/lib/scoring");
-      const sliders = normalizeSliders(body?.sliders || {});
-      const decision = winnerFromAggregate(battle.artistAId, battle.artistBId, sliders);
-
-      if (decision.isTie || !decision.winnerArtistId) {
-        return NextResponse.json({ error: "Fate cannot lock at 50/50. Move at least one slider." }, { status: 409 });
-      }
-
-      const selectedWinnerArtistId = decision.winnerArtistId;
-      const incomingEvents = Array.isArray(body?.events) ? body.events : [];
-      const openedAt = assignment.openedAt ? new Date(assignment.openedAt).getTime() : Date.now();
-      const lockEvent = {
-        id: makeId(),
-        battleId: battle.id,
-        assignmentId,
-        tMs: Math.max(0, Date.now() - openedAt),
-        type: "lock" as const,
-        sliders,
-        aPct: decision.aPct,
-        bPct: decision.bPct,
-      };
-      const events = [...incomingEvents, lockEvent];
-
-      const contestantScores = {
-        [battle.artistAId]: SCORE_CATEGORIES.reduce(
-          (scorecard, category) => ({
-            ...scorecard,
-            [category.key]: Math.max(1, Math.round(((100 - sliders[category.key]) / 100) * 10)),
-          }),
-          {} as Record<ScoreKey, number>,
-        ),
-        [battle.artistBId]: SCORE_CATEGORIES.reduce(
-          (scorecard, category) => ({
-            ...scorecard,
-            [category.key]: Math.max(1, Math.round((sliders[category.key] / 100) * 10)),
-          }),
-          {} as Record<ScoreKey, number>,
-        ),
-      };
-
-      const judgment: ProtocolJudgment = {
-        id: makeId(),
-        assignmentId,
-        battleId: battle.id,
-        judgeArtistId: assignment.judgeArtistId,
-        scores: contestantScores[selectedWinnerArtistId],
-        contestantScores,
-        sliders,
-        events,
-        selectedWinnerArtistId,
-        createdAt: new Date().toISOString(),
-      };
-
-      state.judgmentEvents = [...(state.judgmentEvents || []).filter((entry) => entry.assignmentId !== assignmentId), ...events];
-
-      state.judgments = state.judgments.filter((entry) => entry.assignmentId !== assignmentId);
-      state.judgments.push(judgment);
+      const recorded = recordSliderJudgment(state, assignment, battle, body?.sliders, body?.events);
+      if ("error" in recorded) return NextResponse.json({ error: recorded.error }, { status: recorded.status });
       assignment.status = "completed";
-      assignment.completedAt = new Date().toISOString();
-      resolveBattleWinner(state, battle.id, selectedWinnerArtistId, assignment.completedAt);
-      logProtocolEvent(state, "vote_recorded", `Judge ${assignment.judgeArtistId} selected ${selectedWinnerArtistId}.`, {
+      assignment.completedAt = recorded.judgment.createdAt;
+      logProtocolEvent(state, "vote_recorded", "FateKeeper judgment sealed until the wave deadline.", {
         eventId: battle.eventId,
         artistId: assignment.judgeArtistId,
-        metadata: {
-          assignmentId,
-          battleId: battle.id,
-          selectedWinnerArtistId,
-          sliders,
-          aPct: decision.aPct,
-          bPct: decision.bPct,
-        },
+        metadata: { assignmentId, battleId: battle.id },
       });
-      tryAdvanceEvent(state, battle.eventId);
-      const judge = state.artists.find((artist) => artist.id === assignment.judgeArtistId);
-      if (judge && judge.status !== "winner" && judge.status !== "eliminated") {
-        judge.status = "submitted";
-      }
     }
 
     if (action === "finalizeRound") {
-      const eventId = String(body?.eventId || "");
-      tryAdvanceEvent(state, eventId);
+      autoAdvanceProtocol(state);
     }
 
     await persistState(state);
-    return NextResponse.json(await readPayload());
+    return NextResponse.json(visiblePayload(state, principal, principal.host ? await readWorkerHealth() : null), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Protocol action failed." }, { status: 500 });
+    return NextResponse.json({ error: error instanceof AccessError ? error.message : "Protocol action failed." }, { status: error instanceof AccessError ? error.status : error instanceof StateConflictError ? 409 : 500 });
   }
 }

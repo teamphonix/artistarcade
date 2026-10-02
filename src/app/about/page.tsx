@@ -60,6 +60,11 @@ The Artist Arcade is being built as a world where art itself becomes the battleg
 and those with vision, discipline, and originality will have the chance to prove who they are
 through the work they create.
 
+The first pilot brings 64 artists into four events.
+Submit one original track and let it compete through every round.
+You may be chosen as a FateKeeper for another battle.
+Complete every card assigned to you, then wait for the shared final reveal.
+
 This is your invitation.
 
 If you are an artist with something real inside you...

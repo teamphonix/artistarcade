@@ -66,6 +66,7 @@ type ScoreCategory = {
 };
 
 type ProtocolPayload = {
+  tournament?: { startedAt: number; revealAt: number; revealed: boolean } | null;
   artists: Artist[];
   events: EventSummary[];
   battles: Battle[];
@@ -165,6 +166,15 @@ export default function ArtistResultsPage() {
     );
   }
 
+  if (payload.tournament && !payload.tournament.revealed) {
+    return <main className="artist-dashboard-page"><section className="artist-dashboard-shell">
+      <span className="artist-entry-kicker">Final reveal sealed</span>
+      <h1>Your track’s journey is still sealed.</h1>
+      <p>All four events reveal together at {new Date(payload.tournament.revealAt).toLocaleTimeString()}. Stay available for your FateKeeper duties.</p>
+      <Link className="artist-room-link" href={`/artist/${artistId}/event`}>Return to the tournament</Link>
+    </section></main>;
+  }
+
   return (
     <main className="artist-dashboard-page">
       <section className="artist-dashboard-shell">
@@ -251,10 +261,10 @@ export default function ArtistResultsPage() {
               const opponentId = battle.artistAId === artistId ? battle.artistBId : battle.artistAId;
               const opponent = payload.artists.find((entry) => entry.id === opponentId) || null;
               const artistSubmission = payload.submissions.find(
-                (entry) => entry.eventId === battle.eventId && entry.artistId === artistId && entry.round === battle.round,
+                (entry) => entry.eventId === battle.eventId && entry.artistId === artistId,
               );
               const opponentSubmission = payload.submissions.find(
-                (entry) => entry.eventId === battle.eventId && entry.artistId === opponentId && entry.round === battle.round,
+                (entry) => entry.eventId === battle.eventId && entry.artistId === opponentId,
               );
               const assignment = payload.assignments.find((entry) => entry.battleId === battle.id) || null;
               const judgment = assignment
