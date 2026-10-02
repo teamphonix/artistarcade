@@ -1,0 +1,11 @@
+# Participant wording and wallet flow
+
+Public pages now describe a 64-artist pilot across four events. Per-event queue capacity/count denominators are removed from landing, artist dashboard, event selection, event room wording, operator copy, test-run headings, and notifications/errors. The underlying sixteen-track brackets remain unchanged. This is a wording change, not a promise that API metadata or a visible demonstration bracket cannot reveal its structure.
+
+Landing and entry consent share the rules in `src/app/lib/pilotCopy.ts`: one original track for the whole tournament, random cross-event FateKeeper duties, one active card at a time, variable/no assignment counts, missed-duty forfeitures, automatic fallback without reassignment, and the shared reveal. The rules version is now `2026-10-02`; the event picker no longer treats acceptance of an older version as current consent. The server requires an explicit boolean acceptance when current consent is absent.
+
+The artist dashboard funding form opens authenticated Stripe Checkout. Checkout resolves the profile/name/email from the verified account, rejects a different artist ID, and rejects invalid amounts rather than silently adjusting them. Success/cancel return to the owned dashboard. Redirect query parameters never credit funds or prove a payment; only the verified webhook can credit a deposit. The dashboard refreshes verified balances and in-app duties every ten seconds without overlapping polls. Bank withdrawals are disabled visibly until real payouts exist.
+
+Validation: 36 automated tests pass, including authenticated checkout ownership, amount validation, owned return URLs, and provider-error handling. Public pages were rendered with React server rendering to check nonempty output and removal of queue wording. This was not a browser visual/interaction test or a live Stripe checkout. The production build with type checks passes; changed-file lint has no errors and three pre-existing unused helper warnings in the event room.
+
+These changes are saved on the draft pilot branch. No migration, live payment, production deployment, or scheduler activation was performed. Staging setup, provider delivery, full cohort rehearsal, media hardening, and bank payout implementation remain required.

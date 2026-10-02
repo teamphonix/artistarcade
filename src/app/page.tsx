@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import ArtistSignIn from "@/app/components/ArtistSignIn";
+import TournamentRules from "@/app/components/TournamentRules";
 
 const protocolSteps = [
-  ["Create profile", "Use a stage name and email to open your beta account."],
-  ["Fund wallet", "Add funds, withdraw available balance, and pay entry fees from one place."],
-  ["Enter arena", "Join one open event. When 16 artists enter, the queue locks automatically."],
-  ["Submit and judge", "Artists get 24 hours from event start to submit, then judging assignments open."],
+  ["Claim your identity", "Verify your email and choose your stage name."],
+  ["Enter the arena", "Join one of four events in the 64-artist pilot. Entry opens your challenge and submission deadline."],
+  ["One track. One journey.", "Submit your original track once. That same track competes all the way to the final."],
+  ["Keep their fate", "Complete each FateKeeper card assigned to you, then stay available until the shared reveal."],
 ];
 
 export default function Home() {
@@ -30,14 +31,18 @@ export default function Home() {
       <section className="protocol-hero">
         <div className="protocol-copy">
           <span className="protocol-kicker">Beta protocol</span>
-          <h1>Music tournaments with clear rules and automatic flow.</h1>
+          <h1>64 artists. Four events. One track to victory.</h1>
           <p>
-            Artist Arcade is being built as a simple competition protocol: profiles, wallets, event queues, submissions,
-            judging assignments, and results. The product should stay clean until the system is solid.
+            Bring your track into the arena. While it competes, you may be chosen as a FateKeeper for other battles.
+            Their fate is in your hands. Your own result stays sealed until the final reveal.
           </p>
         </div>
 
-        <ArtistSignIn />
+        <div className="protocol-entry-card"><h2>Enter the Artist Arcade beta</h2><ArtistSignIn /></div>
+      </section>
+      <section className="protocol-section">
+        <div className="protocol-section-head"><h2>Your path to the reveal</h2></div>
+        <TournamentRules />
       </section>
 
       <section className="protocol-section">

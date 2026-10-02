@@ -20,6 +20,8 @@
 
 The protocol route now records a sealed judgment and calls the engine for progression. It no longer opens a new upload window per round. Independent A/B score values are stored correctly. Build type checking is restored.
 
+Participant pages now describe the 64-artist experience, without per-event queue capacity wording, and share the current FateKeeper rules at entry. Wallet funding opens verified checkout; bank withdrawals remain visibly unavailable. See `docs/participant-experience.md`.
+
 The event room refreshes assignments without overlapping polling requests and shows the shared reveal countdown. The results page stays sealed while the cohort is running. These UI controls are not a substitute for server-side confidentiality.
 
 Run `npm test`, `npx tsc --noEmit`, and `npm run build`.

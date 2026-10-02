@@ -117,7 +117,7 @@ function buildNotifications(state: ProtocolState) {
         eventId: event.id,
         level: "action",
         title: `${event.title} is ready to lock`,
-        body: "The queue has 16 paid entries. The protocol can lock the event and open submissions.",
+        body: "Event entries are ready. The protocol can open the submission window.",
         actionHref: "/host",
         createdAt: event.queueClosedAt || now,
       });
@@ -184,13 +184,13 @@ function buildNotifications(state: ProtocolState) {
           eventId: event.id,
           level: "info",
           title: "Entry confirmed",
-          body: `${event.title} has your $1 entry. The queue is ${entries.length}/16. Your event room will show the next live step when the protocol opens it.`,
+          body: `Your entry in ${event.title} is confirmed. Your event room will show the challenge and submission deadline when they open.`,
           actionHref: `/artist/${artist.id}/event`,
           createdAt: entry.joinedAt,
         });
       }
 
-      if (event.phase === "submission" && activeRoundArtistIds.has(artist.id) && !artistSubmission) {
+      if (event.phase === "submission" && !artistSubmission) {
         notifications.push({
           id: `artist-${artist.id}-${event.id}-submit-round-${event.currentRound}`,
           audience: "artist",
@@ -198,7 +198,7 @@ function buildNotifications(state: ProtocolState) {
           eventId: event.id,
           level: "action",
           title: "Submission window open",
-          body: `Round ${event.currentRound} is live for ${event.title}. Upload your track before the deadline.`,
+          body: `The challenge is open for ${event.title}. Submit your one tournament track before the deadline.`,
           actionHref: `/artist/${artist.id}/event`,
           createdAt: event.queueClosedAt || now,
         });
@@ -212,7 +212,7 @@ function buildNotifications(state: ProtocolState) {
           eventId: event.id,
           level: "success",
           title: "Submission received",
-          body: `${artistSubmission.title} is locked for round ${event.currentRound}. Stand by for judging.`,
+          body: `${artistSubmission.title} is your tournament track. Stay available for FateKeeper duties.`,
           actionHref: `/artist/${artist.id}/event`,
           createdAt: artistSubmission.submittedAt,
         });
@@ -353,7 +353,7 @@ function buildBetaReadiness(state: ProtocolState, workerHealth: WorkerHealth | n
       id: "dry-run",
       label: "End-to-end dry run",
       status: completedDryRun ? "ready" : "warning",
-      detail: completedDryRun ? "At least one event completed with a prize ledger." : "Run one complete 16-artist production-style test before invites.",
+      detail: completedDryRun ? "At least one event completed with a prize ledger." : "Rehearse a complete 64-artist, four-event pilot before invites.",
     },
   ] as const;
   const blocked = checks.filter((check) => check.status === "blocked").length;
@@ -662,7 +662,7 @@ export async function POST(request: Request) {
       }
 
       if (eventEntries.length >= ARTISTS_PER_EVENT) {
-        return NextResponse.json({ error: "This event already has 16 artists." }, { status: 409 });
+        return NextResponse.json({ error: "This event is full. Choose another open event." }, { status: 409 });
       }
 
       if (state.entries.some((entry) => entry.artistId === artistId)) {
@@ -674,7 +674,7 @@ export async function POST(request: Request) {
       }
 
       if (artist.betaRulesVersion !== BETA_RULES_VERSION || !artist.betaRulesAcceptedAt) {
-        if (!body?.acceptBetaRules) {
+        if (body?.acceptBetaRules !== true) {
           return NextResponse.json({ error: "Accept the beta rules before joining a paid event." }, { status: 409 });
         }
 
@@ -721,7 +721,7 @@ export async function POST(request: Request) {
     if (action === "closeQueue") {
       const eventId = String(body?.eventId || "");
       if (!lockEventQueue(state, eventId)) {
-        return NextResponse.json({ error: "Queue needs exactly 16 artists before it closes." }, { status: 409 });
+        return NextResponse.json({ error: "Event entries are not ready to close yet." }, { status: 409 });
       }
     }
 

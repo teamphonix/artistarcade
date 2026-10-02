@@ -549,7 +549,7 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
             </section>
 
             {!isDemo ? <form className="artist-room-panel artist-room-panel-wide" onSubmit={(event) => handleSubmission(event, eventRoom.id, eventRoom.currentRound)}>
-              <h2>Submit your round</h2>
+              <h2>Your tournament track</h2>
               <label>
                 Track title
                 <input value={title} onChange={(event) => setTitle(event.target.value)} />
@@ -579,7 +579,7 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
                 {submission
                   ? `Your tournament track: ${submission.title}. This same track competes through every round.`
                   : eventStarted
-                    ? "No file submitted for this round yet."
+                    ? "Submit your one original track before the deadline."
                     : "Submission stays locked until the Eastern start time is reached."}
               </p>
             </form> : null}
@@ -799,7 +799,7 @@ const battleHeadline = matchupArtists.map(({ artist }) => artist.name).join(" vs
         ) : (
           <section className="artist-room-panel artist-room-panel-wide">
             <h2>No active event</h2>
-            <p>Join one of the open event queues from your dashboard to unlock this room.</p>
+            <p>Choose an open event from your dashboard to unlock this room.</p>
           </section>
         )}
       </section>

@@ -533,7 +533,7 @@ export default function ArenaPage() {
                 Save submission
               </button>
               <p className="artist-muted">
-                {artistSubmission ? `Saved: ${artistSubmission.title}` : "No current round submission saved yet."}
+                {artistSubmission ? `Saved: ${artistSubmission.title}` : "Your tournament track has not been submitted yet."}
               </p>
             </form>
           </section>
@@ -697,7 +697,7 @@ export default function ArenaPage() {
                 </select>
               </label>
               <p>
-                Host view keeps the real queue visible. Front end never shows the 16-artist structure to participants.
+                Operators monitor event entries here. Artists follow their track and FateKeeper cards in their private event room.
               </p>
               <button disabled={isBusy || selectedEvent.phase !== "queue"} type="submit">
                 Join selected event
@@ -786,7 +786,7 @@ export default function ArenaPage() {
               <div className="protocol-summary">
                 <span>Phase: {selectedEvent.phase}</span>
                 <span>Round: {selectedEvent.currentRound}</span>
-                <span>Queued: {selectedEvent.queuedCount}/16</span>
+                <span>Event entries: {selectedEvent.queuedCount}</span>
                 <span>Submission deadline: {shortTime(selectedEvent.submissionDeadline)}</span>
                 <span>Judging deadline: {shortTime(selectedEvent.judgingDeadline)}</span>
                 <span>Challenge audio: {selectedEvent.challengeAudioUrl}</span>
