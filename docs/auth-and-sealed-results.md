@@ -16,7 +16,7 @@ This branch requires Supabase email verification before accessing the protocol A
 
 Artists receive their own account and ledger, their own entry/submission, and only the battle/audio needed for their active FateKeeper card. Other artists' email, balances, preferences, and ledger are excluded. Completed cards stop exposing their contenders until reveal. Own artist/entry elimination state is masked, judgments and winner fields are hidden, and future bracket identities and audit details are omitted before the shared reveal. Only the artist's own in-app notifications are returned.
 
-After the engine records the final shared reveal, the artist's own battle results become accessible. Hosts retain the operational view. Responses use `Cache-Control: private, no-store`. The cron endpoint forwards its protected bearer token; it can continue ticking without an artist session. No background schedule has been provisioned yet.
+After the engine records the final shared reveal, the artist's own battle results become accessible. Hosts retain the operational view. Responses use `Cache-Control: private, no-store`. The protected cron endpoint updates the database directly without an artist session. A minute schedule is staged but not activated; see `background-worker.md`.
 
 Run `supabase/migrations/20261004_private_protocol.sql` after the earlier migrations in staging. It revokes direct protocol table access from public, anon, and authenticated roles so PostgREST cannot bypass the server projection. Service-role credentials must remain server-only. The migration has not been applied to a live database.
 

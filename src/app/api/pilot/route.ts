@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { AccessError, artistState, authorizeAction, type Principal } from "@/app/lib/access";
 import { checkOrigin, requirePrincipal } from "@/app/lib/requestAuth";
-import { buildStatePatch, rememberSnapshot, StateConflictError, type DatabaseRows } from "@/app/lib/databaseState";
+import { StateConflictError } from "@/app/lib/databaseState";
+import { loadState, persistState } from "@/app/lib/protocolPersistence";
+import { autoAdvanceProtocol, lockEventQueue } from "@/app/lib/protocolEngine";
+import { readWorkerHealth, workerIsHealthy, type WorkerHealth } from "@/app/lib/protocolWorker";
 import { advancePilot, pilotClock } from "@/app/lib/tournament";
 import { recordSliderJudgment } from "@/app/lib/recordJudgment";
 import {
@@ -13,11 +16,7 @@ import {
   eventStandings,
   getEventEntries,
   makeId,
-  readPilotState,
   scoreBattle,
-  seedPilotState,
-  writePilotState,
-  type ProtocolBattle,
   type ProtocolEntry,
   type ProtocolState,
 } from "@/app/lib/pilotStore";
@@ -268,7 +267,7 @@ function buildNotifications(state: ProtocolState) {
   return notifications.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-function buildBetaReadiness(state: ProtocolState) {
+function buildBetaReadiness(state: ProtocolState, workerHealth: WorkerHealth | null = null) {
   const usesSupabase = Boolean(getSupabaseAdmin());
   const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
   const storageConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SUBMISSIONS_BUCKET);
@@ -327,8 +326,10 @@ function buildBetaReadiness(state: ProtocolState) {
     {
       id: "automation",
       label: "Autonomous tick",
-      status: cronConfigured ? "ready" : "warning",
-      detail: cronConfigured ? "Cron secret is configured for protected protocol ticks." : "Cron secret is missing. Manual/API ticks may still work.",
+      status: cronConfigured && workerIsHealthy(workerHealth) ? "ready" : "warning",
+      detail: !cronConfigured ? "Worker secret is missing." : workerIsHealthy(workerHealth)
+        ? `Background worker last succeeded at ${workerHealth!.last_success_at}.`
+        : "Background worker has no recent successful run. Verify the deployed schedule and worker logs.",
     },
     {
       id: "audit",
@@ -367,7 +368,7 @@ function buildBetaReadiness(state: ProtocolState) {
   };
 }
 
-function summarize(state: ProtocolState) {
+function summarize(state: ProtocolState, workerHealth: WorkerHealth | null = null) {
   const events = state.events.map((event) => {
     const entries = getEventEntries(state, event.id);
     const battles = state.battles.filter((battle) => battle.eventId === event.id);
@@ -411,7 +412,8 @@ function summarize(state: ProtocolState) {
     judgmentEvents: state.judgmentEvents || [],
     walletLedger: state.walletLedger,
     notifications: buildNotifications(state),
-    betaReadiness: buildBetaReadiness(state),
+    betaReadiness: buildBetaReadiness(state, workerHealth),
+    workerHealth,
     auditLog: [...(state.auditLog || [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100),
     scoredBattles,
     scoreCategories: SCORE_CATEGORIES,
@@ -432,261 +434,8 @@ function summarize(state: ProtocolState) {
   };
 }
 
-function createRoundBattles(state: ProtocolState, eventId: string, round: number, artistIds: string[]) {
-  const now = new Date().toISOString();
-  const createdBattles: ProtocolBattle[] = [];
-
-  for (let index = 0; index < artistIds.length; index += 2) {
-    const artistAId = artistIds[index];
-    const artistBId = artistIds[index + 1];
-
-    if (!artistAId || !artistBId) {
-      continue;
-    }
-
-    const exists = state.battles.some(
-      (battle) =>
-        battle.eventId === eventId &&
-        battle.round === round &&
-        ((battle.artistAId === artistAId && battle.artistBId === artistBId) ||
-          (battle.artistAId === artistBId && battle.artistBId === artistAId)),
-    );
-
-    if (!exists) {
-      createdBattles.push({
-        id: makeId(),
-        eventId,
-        round,
-        slot: Math.floor(index / 2) + 1,
-        artistAId,
-        artistBId,
-        status: "pending",
-        winnerArtistId: null,
-        createdAt: now,
-        completedAt: null,
-      });
-    }
-  }
-
-  state.battles.push(...createdBattles);
-}
-
-function lockEventQueue(state: ProtocolState, eventId: string) {
-  const event = state.events.find((entry) => entry.id === eventId);
-  const entries = state.entries.filter((entry) => entry.eventId === eventId).sort((a, b) => a.seed - b.seed);
-
-  if (!event || event.phase !== "queue" || entries.length !== ARTISTS_PER_EVENT) {
-    return false;
-  }
-
-  event.phase = "submission";
-  const scheduledStart = event.queueClosedAt ? new Date(event.queueClosedAt) : new Date();
-  event.queueClosedAt = scheduledStart.toISOString();
-  event.submissionDeadline = event.submissionDeadline || addHours(scheduledStart, SUBMISSION_WINDOW_HOURS);
-  entries.forEach((entry) => {
-    entry.status = "active";
-    const artist = state.artists.find((savedArtist) => savedArtist.id === entry.artistId);
-    if (artist) {
-      artist.status = "queued";
-    }
-  });
-  createRoundBattles(
-    state,
-    event.id,
-    1,
-    entries.map((entry) => entry.artistId),
-  );
-  logProtocolEvent(state, "queue_locked", `${event.title} queue locked at ${entries.length} artists.`, {
-    eventId: event.id,
-    metadata: {
-      submissionDeadline: event.submissionDeadline,
-      artistIds: entries.map((entry) => entry.artistId),
-    },
-  });
-
-  return true;
-}
-
-function autoAdvanceProtocol(state: ProtocolState) {
-  let changed = false;
-  for (const event of state.events) {
-    if (lockEventQueue(state, event.id)) changed = true;
-  }
-  return advancePilot(state) || changed;
-}
-
-async function readSupabaseState() {
-  const supabase = getSupabaseAdmin();
-  if (!supabase) {
-    return readPilotState();
-  }
-
-  const { data: snapshot, error } = await supabase.rpc("protocol_read_snapshot");
-  if (error) throw new Error("Protocol snapshot failed. Apply the atomic persistence migration before enabling this build: " + error.message);
-  const artistsResult = { data: snapshot.tables.protocol_artists as DatabaseRows["protocol_artists"] };
-  const eventsResult = { data: snapshot.tables.protocol_events as DatabaseRows["protocol_events"] };
-  const entriesResult = { data: snapshot.tables.protocol_entries as DatabaseRows["protocol_entries"] };
-  const submissionsResult = { data: snapshot.tables.protocol_submissions as DatabaseRows["protocol_submissions"] };
-  const battlesResult = { data: snapshot.tables.protocol_battles as DatabaseRows["protocol_battles"] };
-  const assignmentsResult = { data: snapshot.tables.protocol_assignments as DatabaseRows["protocol_assignments"] };
-  const judgmentsResult = { data: snapshot.tables.protocol_judgments as DatabaseRows["protocol_judgments"] };
-  const walletLedgerResult = { data: snapshot.tables.protocol_wallet_ledger as DatabaseRows["protocol_wallet_ledger"] };
-  const auditLogResult = { data: snapshot.tables.protocol_audit_log as DatabaseRows["protocol_audit_log"] };
-
-  const state: ProtocolState = {
-    settings: seedPilotState.settings,
-    artists: (artistsResult.data || []).map((artist) => ({
-      id: artist.id,
-      name: artist.name,
-      email: artist.email,
-      walletCents: artist.wallet_cents,
-      rewardCents: artist.reward_cents,
-      status: artist.status,
-      notificationPreferences: artist.notification_preferences || defaultNotificationPreferences(),
-      betaRulesAcceptedAt: artist.beta_rules_accepted_at,
-      betaRulesVersion: artist.beta_rules_version,
-      createdAt: artist.created_at,
-    })),
-    events: (eventsResult.data || []).map((event) => ({
-      id: event.id,
-      title: event.title,
-      eventType: event.event_type,
-      creatorArtistId: event.creator_artist_id,
-      desiredPrizeCents: event.desired_prize_cents,
-      entryFeeCents: event.entry_fee_cents,
-      challengeTitle: event.challenge_title,
-      challengeDescription: event.challenge_description,
-      challengeAudioUrl: event.challenge_audio_url,
-      phase: event.phase,
-      currentRound: event.current_round,
-      queueOpenedAt: event.queue_opened_at,
-      queueClosedAt: event.queue_closed_at,
-      submissionDeadline: event.submission_deadline,
-      judgingDeadline: event.judging_deadline,
-      winnerArtistId: event.winner_artist_id,
-      companyRevenueCents: event.company_revenue_cents,
-    })),
-    entries: (entriesResult.data || []).map((entry) => ({
-      id: entry.id,
-      eventId: entry.event_id,
-      artistId: entry.artist_id,
-      seed: entry.seed,
-      paidCents: entry.paid_cents,
-      status: entry.status,
-      joinedAt: entry.joined_at,
-    })),
-    submissions: (submissionsResult.data || []).map((submission) => ({
-      id: submission.id,
-      eventId: submission.event_id,
-      artistId: submission.artist_id,
-      round: submission.round,
-      title: submission.title,
-      audioUrl: submission.audio_url,
-      durationSeconds: submission.duration_seconds,
-      submittedAt: submission.submitted_at,
-    })),
-    battles: (battlesResult.data || []).map((battle) => ({
-      id: battle.id,
-      eventId: battle.event_id,
-      round: battle.round,
-      slot: battle.slot,
-      artistAId: battle.artist_a_id,
-      artistBId: battle.artist_b_id,
-      status: battle.status,
-      winnerArtistId: battle.winner_artist_id,
-      createdAt: battle.created_at,
-      completedAt: battle.completed_at,
-    })),
-    assignments: (assignmentsResult.data || []).map((assignment) => ({
-      id: assignment.id,
-      battleId: assignment.battle_id,
-      judgeArtistId: assignment.judge_artist_id,
-      status: assignment.status,
-      assignedAt: assignment.assigned_at,
-      openedAt: assignment.opened_at,
-      dueAt: assignment.due_at,
-      completedAt: assignment.completed_at,
-    })),
-    judgments: (judgmentsResult.data || []).map((judgment) => ({
-      id: judgment.id,
-      assignmentId: judgment.assignment_id,
-      battleId: judgment.battle_id,
-      judgeArtistId: judgment.judge_artist_id,
-      scores: {
-        lyrics: judgment.lyrics,
-        delivery: judgment.delivery,
-        originality: judgment.originality,
-        flow: judgment.flow,
-        impact: judgment.impact,
-      },
-      contestantScores: judgment.contestant_scores || undefined,
-      sliders: judgment.sliders || undefined,
-      events: judgment.timeline || undefined,
-      selectedWinnerArtistId: judgment.selected_winner_artist_id,
-      createdAt: judgment.created_at,
-    })),
-    walletLedger: (walletLedgerResult.data || []).map((entry) => ({
-      id: entry.id,
-      artistId: entry.artist_id,
-      eventId: entry.event_id,
-      amountCents: entry.amount_cents,
-      type: entry.type,
-      note: entry.note,
-      createdAt: entry.created_at,
-    })),
-    auditLog: (auditLogResult.data || []).map((entry) => ({
-      id: entry.id,
-      eventId: entry.event_id,
-      artistId: entry.artist_id,
-      action: entry.action,
-      note: entry.note,
-      metadata: entry.metadata || {},
-      createdAt: entry.created_at,
-    })),
-  };
-
-  state.judgmentEvents = state.judgments.flatMap(judgment => judgment.events || []);
-  rememberSnapshot(state, Number(snapshot.revision));
-  if (state.artists.length === 0 && state.events.length === 0) {
-    Object.assign(state, structuredClone(seedPilotState), { revision: Number(snapshot.revision) });
-    // Demo seed credits are not backed by USD. Production starts every wallet at zero.
-    state.artists.forEach(artist => { artist.walletCents = 0; artist.rewardCents = 0; });
-    await writeSupabaseState(state);
-    return state;
-  }
-  return state;
-}
-
-async function writeSupabaseState(state: ProtocolState) {
-  const supabase = getSupabaseAdmin();
-  if (!supabase) throw new Error("Atomic protocol persistence requires Supabase.");
-  if (!Number.isSafeInteger(state.revision)) throw new Error("Protocol snapshot revision is required.");
-  const { data, error } = await supabase.rpc("protocol_commit", {
-    p_expected_revision: state.revision,
-    p_patch: buildStatePatch(state),
-  });
-  if (error?.code === "40001" || error?.code === "40P01") throw new StateConflictError();
-  if (error) throw new Error(error.message);
-  rememberSnapshot(state, Number(data));
-}
-
-async function loadState() {
-  if (getSupabaseAdmin()) return readSupabaseState();
-  if (process.env.NODE_ENV === "production") throw new Error("Supabase is required in production; local wallets are demo-only.");
-  return readPilotState();
-}
-
-async function persistState(state: ProtocolState) {
-  if (getSupabaseAdmin()) {
-    await writeSupabaseState(state);
-    return;
-  }
-
-  await writePilotState(state);
-}
-
-function visiblePayload(state: ProtocolState, principal: Principal) {
-  if (principal.host) return summarize(state);
+function visiblePayload(state: ProtocolState, principal: Principal, workerHealth: WorkerHealth | null = null) {
+  if (principal.host) return summarize(state, workerHealth);
   const payload = summarize(artistState(state, principal.email));
   const own = state.artists.find(a => a.email.toLowerCase() === principal.email);
   return { ...payload, tournament: pilotClock(state), notifications: payload.notifications.filter(n => n.audience === "artist" && n.artistId === own?.id), auditLog: [], betaReadiness: null,
@@ -703,7 +452,7 @@ async function readPayload(principal: Principal) {
     try {
       const state = await loadState();
       if (autoAdvanceProtocol(state)) await persistState(state);
-      return visiblePayload(state, principal);
+      return visiblePayload(state, principal, principal.host ? await readWorkerHealth() : null);
     } catch (error) {
       if (!(error instanceof StateConflictError) || attempt === 2) throw error;
     }
@@ -713,8 +462,7 @@ async function readPayload(principal: Principal) {
 
 export async function GET(request: Request) {
   try {
-    const worker = process.env.CRON_SECRET && request.headers.get("authorization") === `Bearer ${process.env.CRON_SECRET}`;
-    const principal = worker ? { email: "", host: true } : await requirePrincipal(request);
+    const principal = await requirePrincipal(request);
     return NextResponse.json(await readPayload(principal), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof AccessError ? error.message : "Protocol read failed." }, { status: error instanceof AccessError ? error.status : error instanceof StateConflictError ? 409 : 500 });
@@ -1076,7 +824,7 @@ export async function POST(request: Request) {
     }
 
     await persistState(state);
-    return NextResponse.json(visiblePayload(state, principal), { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json(visiblePayload(state, principal, principal.host ? await readWorkerHealth() : null), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof AccessError ? error.message : "Protocol action failed." }, { status: error instanceof AccessError ? error.status : error instanceof StateConflictError ? 409 : 500 });
   }

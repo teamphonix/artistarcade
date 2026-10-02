@@ -397,31 +397,7 @@ export default function HostPage() {
   }
 
   async function runProtocolTick() {
-    setIsBusy(true);
-    setMessage("");
-
-    try {
-      const response = await fetch("/api/protocol/tick", { cache: "no-store" });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Protocol tick failed.");
-      }
-
-      const nextResponse = await fetch("/api/pilot", { cache: "no-store" });
-      const nextPayload = await nextResponse.json();
-
-      if (!nextResponse.ok) {
-        throw new Error(nextPayload.error || "Protocol refresh failed.");
-      }
-
-      syncPayload(nextPayload);
-      setMessage(`Protocol tick completed at ${shortTime(data.tickedAt)}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Protocol tick failed.");
-    } finally {
-      setIsBusy(false);
-    }
+    await postProtocol("finalizeRound");
   }
 
   async function uploadBeatFile(eventId: string) {
