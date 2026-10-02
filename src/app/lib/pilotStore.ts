@@ -155,6 +155,7 @@ export type ProtocolAuditEntry = {
 };
 
 export type ProtocolState = {
+  revision?: number;
   settings: {
     artistsPerEvent: number;
     eventCount: number;

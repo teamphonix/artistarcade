@@ -28,11 +28,11 @@ Before using the changed route against Supabase, apply `supabase/migrations/2026
 
 ## Production blockers — do not merge/deploy for real USD yet
 
-1. **Atomic persistence:** existing saves delete/reinsert tables. Replace them with database transactions and concurrency control shared by ticks, judgments, checkout, and webhooks. Snapshot idempotency alone does not prevent simultaneous writers from losing data or duplicating credits.
+1. **Atomic persistence rollout:** revision-checked transactions, incremental row patches, and atomic Stripe deposit receipts are implemented on this branch. The migrations have not been applied to staging/production. Validate coordinated cutover and reconcile any historical demo balances or duplicate prizes before real USD use. See `docs/atomic-persistence.md`.
 2. **Identity and authority:** authenticate artists and hosts; verify ownership of every submission and assigned card; protect reset and balance mutations.
 3. **Server-side sealed views:** the existing public protocol payload exposes bracket information and private artist state. Serve authenticated, limited artist views and a protected host view. The results-page guard alone cannot hide outcomes from network inspection.
 4. **Background processing:** `vercel.json` currently has no cron jobs. Provision a protected worker that ticks at least once each minute without requiring an artist's browser to remain open. A `CRON_SECRET` alone does not schedule a worker. The tick endpoint now denies requests when its secret is absent.
-5. **Money:** process Stripe events exactly once, use atomic deposits, preserve existing balances at checkout, and implement verified bank payouts. The current withdrawal route does not transfer funds to a bank.
+5. **Money:** duplicate-safe deposits and checkout balance preservation are implemented and tested locally. Run signed Stripe sandbox deliveries against staging, then implement verified bank payouts, refunds, and dispute handling. Manual persisted balance mutations/withdrawals are disabled; the previous withdrawal route did not transfer funds to a bank.
 6. **Notification delivery:** in-app assignment refreshes work while a page is open. Email/push delivery, retries, and provider setup remain unimplemented.
 7. **Full staging rehearsal:** exercise the authenticated API and transaction layer with 64 concurrent clients, deadline races, reloads, network interruptions, and duplicate payment events before inviting paid users.
 
