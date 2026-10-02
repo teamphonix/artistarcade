@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
+import { AccessError } from "@/app/lib/access";
+import { checkOrigin, requirePrincipal } from "@/app/lib/requestAuth";
 import { DEFAULT_WALLET_DEPOSIT_USD, centsFromUsd, isValidEmail } from "@/app/lib/protocol";
 import { getAppUrl, getStripe } from "@/app/lib/stripe";
 
 export async function POST(request: Request) {
+  let verifiedEmail: string;
+  try { checkOrigin(request); verifiedEmail = (await requirePrincipal(request)).email; }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Sign-in required." }, { status: error instanceof AccessError ? error.status : 500 }); }
   const body = await request.json().catch(() => null);
   const name = String(body?.name || "").trim();
-  const email = String(body?.email || "").trim().toLowerCase();
+  const email = verifiedEmail;
   const amountCents = Math.max(100, Math.round(Number(body?.amountCents || centsFromUsd(DEFAULT_WALLET_DEPOSIT_USD))));
   if (!Number.isSafeInteger(amountCents) || amountCents > 2_000_000_000) {
     return NextResponse.json({ error: "Invalid USD deposit amount." }, { status: 400 });

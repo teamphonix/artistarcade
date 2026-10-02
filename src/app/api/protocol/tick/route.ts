@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   }
 
   const protocolUrl = new URL("/api/pilot", request.url);
-  const response = await fetch(protocolUrl, { cache: "no-store" });
+  const response = await fetch(protocolUrl, { cache: "no-store", headers: { authorization: request.headers.get("authorization")! } });
   const payload = await response.json();
 
   if (!response.ok) {

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { AccessError } from "@/app/lib/access";
+import { checkOrigin, requirePrincipal } from "@/app/lib/requestAuth";
 import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 
 const DEFAULT_BUCKET = process.env.SUPABASE_SUBMISSIONS_BUCKET || "submissions";
@@ -39,11 +41,19 @@ async function ensureBucket() {
 
 export async function POST(request: Request) {
   try {
+    checkOrigin(request);
+    const principal = await requirePrincipal(request);
     const formData = await request.formData();
     const file = formData.get("file");
     const artistId = String(formData.get("artistId") || "").trim();
     const eventId = String(formData.get("eventId") || "").trim();
     const round = String(formData.get("round") || "1").trim();
+    const admin = getSupabaseAdmin()!;
+    const { data: artist, error: artistError } = await admin.from("protocol_artists").select("id").eq("email", principal.email).single();
+    if (artistError || artist?.id !== artistId) throw new AccessError("Upload only to your own artist profile.");
+    const { data: entry } = await admin.from("protocol_entries").select("id").eq("artist_id", artistId).eq("event_id", eventId).single();
+    const { data: event } = await admin.from("protocol_events").select("phase,submission_deadline").eq("id", eventId).single();
+    if (!entry || event?.phase !== "submission" || !event.submission_deadline || Date.now() >= Date.parse(event.submission_deadline) || round !== "1") throw new AccessError("Your submission window is closed.");
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Audio file is required." }, { status: 400 });
@@ -88,8 +98,8 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Upload failed." },
-      { status: 500 },
+      { error: error instanceof AccessError ? error.message : "Upload failed." },
+      { status: error instanceof AccessError ? error.status : 500 },
     );
   }
 }

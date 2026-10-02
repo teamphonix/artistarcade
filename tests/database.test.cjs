@@ -18,6 +18,7 @@ test('PostgreSQL transaction and payment integrity', async t => {
     await db.exec(fs.readFileSync('supabase/schema.sql','utf8').replace('create extension if not exists pgcrypto;',''));
     await db.exec(fs.readFileSync('supabase/migrations/20261002_judgment_timeline.sql','utf8'));
     await db.exec(fs.readFileSync('supabase/migrations/20261003_atomic_protocol.sql','utf8'));
+    await db.exec(fs.readFileSync('supabase/migrations/20261004_private_protocol.sql','utf8'));
     await db.exec(fs.readFileSync('supabase/migrations/20261003_atomic_protocol.sql','utf8'));
     const snapshot = async () => (await db.query('select protocol_read_snapshot() as state')).rows[0].state;
     const commit = async (revision, patch) => (await db.query('select protocol_commit($1,$2::jsonb) as revision', [revision, JSON.stringify(patch)])).rows[0].revision;
@@ -110,6 +111,9 @@ test('PostgreSQL transaction and payment integrity', async t => {
 
     await t.test('anonymous RPCs and direct service-role balance writes are denied', async () => {
       await db.exec('set role anon');
+      await assert.rejects(db.query('select * from protocol_artists'));
+      await db.exec('reset role; set role authenticated');
+      await assert.rejects(db.query('select * from protocol_battles'));
       await assert.rejects(snapshot(),error=>error.code==='42501');
       await db.exec('reset role; set role service_role');
       await snapshot();

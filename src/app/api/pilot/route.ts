@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { AccessError, artistState, authorizeAction, type Principal } from "@/app/lib/access";
+import { checkOrigin, requirePrincipal } from "@/app/lib/requestAuth";
 import { buildStatePatch, rememberSnapshot, StateConflictError, type DatabaseRows } from "@/app/lib/databaseState";
 import { advancePilot, pilotClock } from "@/app/lib/tournament";
 import { recordSliderJudgment } from "@/app/lib/recordJudgment";
@@ -12,7 +14,6 @@ import {
   getEventEntries,
   makeId,
   readPilotState,
-  resetPilotState,
   scoreBattle,
   seedPilotState,
   writePilotState,
@@ -684,12 +685,25 @@ async function persistState(state: ProtocolState) {
   await writePilotState(state);
 }
 
-async function readPayload() {
+function visiblePayload(state: ProtocolState, principal: Principal) {
+  if (principal.host) return summarize(state);
+  const payload = summarize(artistState(state, principal.email));
+  const own = state.artists.find(a => a.email.toLowerCase() === principal.email);
+  return { ...payload, tournament: pilotClock(state), notifications: payload.notifications.filter(n => n.audience === "artist" && n.artistId === own?.id), auditLog: [], betaReadiness: null,
+    events: payload.events.map(event => ({ ...event,
+      queuedCount: state.entries.filter(e => e.eventId === event.id).length,
+      openSlots: ARTISTS_PER_EVENT - state.entries.filter(e => e.eventId === event.id).length,
+      standings: pilotClock(state)?.revealed ? event.standings : [] })),
+    totals: { artists: state.artists.length, events: state.events.length, eventCapacity: state.events.length * ARTISTS_PER_EVENT },
+  };
+}
+
+async function readPayload(principal: Principal) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const state = await loadState();
       if (autoAdvanceProtocol(state)) await persistState(state);
-      return summarize(state);
+      return visiblePayload(state, principal);
     } catch (error) {
       if (!(error instanceof StateConflictError) || attempt === 2) throw error;
     }
@@ -697,15 +711,20 @@ async function readPayload() {
   throw new StateConflictError();
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    return NextResponse.json(await readPayload());
+    const worker = process.env.CRON_SECRET && request.headers.get("authorization") === `Bearer ${process.env.CRON_SECRET}`;
+    const principal = worker ? { email: "", host: true } : await requirePrincipal(request);
+    return NextResponse.json(await readPayload(principal), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Protocol read failed." }, { status: error instanceof StateConflictError ? 409 : 500 });
+    return NextResponse.json({ error: error instanceof AccessError ? error.message : "Protocol read failed." }, { status: error instanceof AccessError ? error.status : error instanceof StateConflictError ? 409 : 500 });
   }
 }
 
 export async function POST(request: Request) {
+  let principal: Principal;
+  try { checkOrigin(request); principal = await requirePrincipal(request); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Sign-in failed." }, { status: error instanceof AccessError ? error.status : 500 }); }
   const body = await request.json().catch(() => null);
   const action = body?.action as ProtocolAction | undefined;
 
@@ -717,24 +736,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Manual resets and balance changes are disabled for persisted USD accounts." }, { status: 403 });
   }
 
-  if (action === "reset") {
-    const nextState = structuredClone(seedPilotState);
-    if (getSupabaseAdmin()) {
-      await writeSupabaseState(nextState);
-    } else {
-      await resetPilotState();
-    }
-    return NextResponse.json(await readPayload());
-  }
-
   try {
     const state = await loadState();
+    authorizeAction(state, principal, action, body);
     autoAdvanceProtocol(state);
     if (action === "upsertArtist") {
       const name = String(body?.name || "").trim();
       const email = String(body?.email || "").trim().toLowerCase();
 
-      if (name.length < 2 || !isValidEmail(email)) {
+      if (name.length < 2 || name.length > 100 || !isValidEmail(email)) {
         return NextResponse.json({ error: "Name and valid email are required." }, { status: 400 });
       }
 
@@ -1066,8 +1076,8 @@ export async function POST(request: Request) {
     }
 
     await persistState(state);
-    return NextResponse.json(summarize(state));
+    return NextResponse.json(visiblePayload(state, principal), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Protocol action failed." }, { status: error instanceof StateConflictError ? 409 : 500 });
+    return NextResponse.json({ error: error instanceof AccessError ? error.message : "Protocol action failed." }, { status: error instanceof AccessError ? error.status : error instanceof StateConflictError ? 409 : 500 });
   }
 }
