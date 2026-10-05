@@ -221,7 +221,7 @@ export default function ArtistEventsPortalPage() {
           <p>
             {currentEvent
               ? "You can review open queues, but beta rules allow one active event per artist profile."
-              : "Pick an event to inspect the queue. When the 16th artist joins, the system locks the queue automatically, alerts artists in-app, and opens the submission window from the scheduled start time."}
+              : "Pick an event to inspect the queue. When registration fills, the system locks entries automatically, alerts artists in-app, and opens the submission window from the scheduled start time."}
           </p>
           <div className="artist-event-grid">
             {visibleEvents.length > 0 ? (
@@ -239,7 +239,7 @@ export default function ArtistEventsPortalPage() {
                   <span>Prize</span>
                   <strong>{money(event.desiredPrizeCents)}</strong>
                   <em>
-                    {event.title} | {event.queuedCount}/16 queued
+                    {event.title} | {event.queuedCount} registered
                   </em>
                 </button>
               ))
@@ -261,7 +261,7 @@ export default function ArtistEventsPortalPage() {
               <span>Starts (ET): {easternTime(selectedEvent.queueClosedAt)}</span>
               <span>Submission deadline (ET): {easternTime(selectedEvent.submissionDeadline)}</span>
               <span>
-                Queue: {selectedEvent.queuedCount}/16 | Entry {money(selectedEvent.entryFeeCents)} | Prize{" "}
+                Artists registered: {selectedEvent.queuedCount} | Entry {money(selectedEvent.entryFeeCents)} | Prize{" "}
                 {money(selectedEvent.desiredPrizeCents)}
               </span>
             </div>

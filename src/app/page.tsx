@@ -7,7 +7,7 @@ import { FormEvent, useState } from "react";
 const protocolSteps = [
   ["Create profile", "Use a stage name and email to open your beta account."],
   ["Fund wallet", "Add funds, withdraw available balance, and pay entry fees from one place."],
-  ["Enter arena", "Join one open event. When 16 artists enter, the queue locks automatically."],
+  ["Enter arena", "Join one open event. When its entry roster is full, registration locks automatically."],
   ["Submit and judge", "Artists get 24 hours from event start to submit, then judging assignments open."],
 ];
 
@@ -70,9 +70,9 @@ export default function Home() {
       <section className="protocol-hero">
         <div className="protocol-copy">
           <span className="protocol-kicker">Beta protocol</span>
-          <h1>Music tournaments with clear rules and automatic flow.</h1>
+          <h1>64 artists. Four events. One stage for your track.</h1>
           <p>
-            Artist Arcade is being built as a simple competition protocol: profiles, wallets, event queues, submissions,
+            Artist Arcade is preparing a 64-artist beta across four events: profiles, wallets, registration, submissions,
             judging assignments, and results. The product should stay clean until the system is solid.
           </p>
         </div>

@@ -697,7 +697,7 @@ export default function ArenaPage() {
                 </select>
               </label>
               <p>
-                Host view keeps the real queue visible. Front end never shows the 16-artist structure to participants.
+                Host view shows registration and event readiness.
               </p>
               <button disabled={isBusy || selectedEvent.phase !== "queue"} type="submit">
                 Join selected event
@@ -786,7 +786,7 @@ export default function ArenaPage() {
               <div className="protocol-summary">
                 <span>Phase: {selectedEvent.phase}</span>
                 <span>Round: {selectedEvent.currentRound}</span>
-                <span>Queued: {selectedEvent.queuedCount}/16</span>
+                <span>Artists registered: {selectedEvent.queuedCount}</span>
                 <span>Submission deadline: {shortTime(selectedEvent.submissionDeadline)}</span>
                 <span>Judging deadline: {shortTime(selectedEvent.judgingDeadline)}</span>
                 <span>Challenge audio: {selectedEvent.challengeAudioUrl}</span>
