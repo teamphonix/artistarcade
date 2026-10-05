@@ -1,0 +1,41 @@
+# Artist Arcade: synchronized 64-player pilot
+
+## Locked tournament rules
+
+- Four simultaneous events, sixteen distinct artists in each, one entry per artist.
+- Each artist uploads one track. That same submission is used in every round.
+- Four synchronized waves: 15 minutes of judging followed by 1 minute of resolution/transition. First-card availability starts the 64-minute clock.
+- One deciding FateKeeper per battle. Assignments are random, outside the judge's own event, and limited to one active card per artist.
+- Assignment counts vary. No assignment means no obligation and no penalty.
+- Advancing tracks cannot encounter the same FateKeeper again in a later round.
+- Eliminated artists remain in the duty pool; no personal result is revealed before the shared final reveal.
+- Early locks are sealed. They do not advance the next wave early.
+- A card without a valid judgment at its deadline receives a cryptographically random 50/50 advancement. It is never reassigned, and the audit labels the fallback.
+- An expired duty disqualifies the assigned artist from winning. When exactly one contender is eligible, duty forfeiture overrides the track score. If both contenders are ineligible, a track can continue for bracket continuity, but it cannot receive a winner prize. An event with no eligible final winner is recorded for host resolution; the engine does not invent a refund policy.
+- Final reveal and internal USD prize credits occur at minute 64. Internal ledger credits are not bank payouts.
+
+## Engine and validation
+
+`src/app/lib/tournament.ts` advances a persisted snapshot using fixed timestamps. Audit records store cohort start, wave distribution, deadline resolution, fallback provenance, and reveal. Repeat ticks are idempotent within a serialized snapshot. A delayed worker catches up using original deadlines rather than extending the tournament.
+
+The protocol route now records a sealed judgment and calls the engine for progression. It no longer opens a new upload window per round. Independent A/B score values are stored correctly. Build type checking is restored.
+
+Participant pages now describe the 64-artist experience, without per-event queue capacity wording, and share the current FateKeeper rules at entry. Wallet funding opens verified checkout; bank withdrawals remain visibly unavailable. See `docs/participant-experience.md`.
+
+The event room refreshes assignments without overlapping polling requests and shows the shared reveal countdown. The results page stays sealed while the cohort is running. These UI controls are not a substitute for server-side confidentiality.
+
+Run `npm test`, `npx tsc --noEmit`, and `npm run build`.
+
+Before using the changed route against Supabase, apply `supabase/migrations/20261002_judgment_timeline.sql` to the intended test database. No migration has been applied automatically.
+
+## Production blockers — do not merge/deploy for real USD yet
+
+1. **Atomic persistence rollout:** revision-checked transactions, incremental row patches, and atomic Stripe deposit receipts are implemented on this branch. The migrations have not been applied to staging/production. Validate coordinated cutover and reconcile any historical demo balances or duplicate prizes before real USD use. See `docs/atomic-persistence.md`.
+2. **Identity rollout:** email OTP sign-in, verified account ownership, a server-controlled host allowlist, session refresh, and same-origin mutation checks are implemented. Configure the email template/provider and rehearse real sessions in staging. See `docs/auth-and-sealed-results.md`.
+3. **Server-side sealed views rollout:** artist responses now omit private accounts, outcomes, later brackets, audit, and judgments before reveal. Direct public/authenticated table reads are revoked by a pending migration. Apply it with the application cutover and verify on staging. Public audio storage still needs separate hardening.
+4. **Background processing rollout:** `vercel.json` now schedules a protected direct-database worker every minute. Transaction conflicts retry, delayed runs catch up, and persisted heartbeat health appears in the host view. Apply the worker-health migration, verify a compatible hosting plan and secret, then prove deployed invocations in staging. No live scheduler has been activated. See `docs/background-worker.md`.
+5. **Money:** duplicate-safe deposits and checkout balance preservation are implemented and tested locally. Run signed Stripe sandbox deliveries against staging, then implement verified bank payouts, refunds, and dispute handling. Manual persisted balance mutations/withdrawals are disabled; the previous withdrawal route did not transfer funds to a bank.
+6. **Notification delivery:** in-app assignment refreshes work while a page is open. Email/push delivery, retries, and provider setup remain unimplemented.
+7. **Full staging rehearsal:** exercise the authenticated API and transaction layer with 64 concurrent clients, deadline races, reloads, network interruptions, and duplicate payment events before inviting paid users.
+
+This branch is a tested tournament-engine implementation, not a declaration that production is ready for paid competition. The existing live mock events remain separate simulations.

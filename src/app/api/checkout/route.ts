@@ -1,16 +1,27 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_WALLET_DEPOSIT_USD, centsFromUsd, isValidEmail } from "@/app/lib/protocol";
-import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
+import { AccessError } from "@/app/lib/access";
+import { checkOrigin, requirePrincipal } from "@/app/lib/requestAuth";
+import { DEFAULT_WALLET_DEPOSIT_USD, centsFromUsd } from "@/app/lib/protocol";
 import { getAppUrl, getStripe } from "@/app/lib/stripe";
+import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 
 export async function POST(request: Request) {
+  let verifiedEmail: string;
+  try { checkOrigin(request); verifiedEmail = (await requirePrincipal(request)).email; }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Sign-in required." }, { status: error instanceof AccessError ? error.status : 500 }); }
   const body = await request.json().catch(() => null);
-  const name = String(body?.name || "").trim();
-  const email = String(body?.email || "").trim().toLowerCase();
-  const amountCents = Math.max(100, Math.round(Number(body?.amountCents || centsFromUsd(DEFAULT_WALLET_DEPOSIT_USD))));
+  const email = verifiedEmail;
+  const amountCents = Number(body?.amountCents ?? centsFromUsd(DEFAULT_WALLET_DEPOSIT_USD));
+  if (!Number.isSafeInteger(amountCents) || amountCents < 100 || amountCents > 2_000_000_000) {
+    return NextResponse.json({ error: "Invalid USD deposit amount." }, { status: 400 });
+  }
 
-  if (name.length < 2 || !isValidEmail(email)) {
-    return NextResponse.json({ error: "Artist name and valid email are required." }, { status: 400 });
+  const { data: artist, error } = await getSupabaseAdmin()!.from("protocol_artists").select("id,name").eq("email", email).single();
+  if (error || !artist) {
+    return NextResponse.json({ error: "Open your verified artist profile before adding funds." }, { status: 409 });
+  }
+  if (body?.artistId && body.artistId !== artist.id) {
+    return NextResponse.json({ error: "Fund only your own artist wallet." }, { status: 403 });
   }
 
   const stripe = getStripe();
@@ -19,25 +30,11 @@ export async function POST(request: Request) {
   }
 
   const appUrl = getAppUrl();
-  const supabase = getSupabaseAdmin();
-
-  if (supabase) {
-    const { error } = await supabase.from("protocol_artists").upsert(
-      {
-        name,
-        email,
-        wallet_cents: 0,
-        reward_cents: 0,
-        status: "registered",
-      },
-      { onConflict: "email" },
-    );
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+  if (process.env.NODE_ENV === "production" && !process.env.NEXT_PUBLIC_APP_URL) {
+    return NextResponse.json({ error: "Checkout return URL is not configured." }, { status: 503 });
   }
 
+  try {
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     customer_email: email,
@@ -55,14 +52,17 @@ export async function POST(request: Request) {
       },
     ],
     metadata: {
-      name,
+      name: artist.name,
       email,
       amountCents: String(amountCents),
       protocol: "artist-arcade-wallet",
     },
-    success_url: `${appUrl}/arena?payment=success`,
-    cancel_url: `${appUrl}/arena?payment=cancelled`,
+    success_url: `${appUrl}/artist/${artist.id}?payment=success`,
+    cancel_url: `${appUrl}/artist/${artist.id}?payment=cancelled`,
   });
 
-  return NextResponse.json({ url: session.url });
+  return NextResponse.json({ url: session.url }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch {
+    return NextResponse.json({ error: "Checkout is unavailable. Try again shortly." }, { status: 503 });
+  }
 }

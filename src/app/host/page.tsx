@@ -397,31 +397,7 @@ export default function HostPage() {
   }
 
   async function runProtocolTick() {
-    setIsBusy(true);
-    setMessage("");
-
-    try {
-      const response = await fetch("/api/protocol/tick", { cache: "no-store" });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Protocol tick failed.");
-      }
-
-      const nextResponse = await fetch("/api/pilot", { cache: "no-store" });
-      const nextPayload = await nextResponse.json();
-
-      if (!nextResponse.ok) {
-        throw new Error(nextPayload.error || "Protocol refresh failed.");
-      }
-
-      syncPayload(nextPayload);
-      setMessage(`Protocol tick completed at ${shortTime(data.tickedAt)}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Protocol tick failed.");
-    } finally {
-      setIsBusy(false);
-    }
+    await postProtocol("finalizeRound");
   }
 
   async function uploadBeatFile(eventId: string) {
@@ -511,8 +487,7 @@ export default function HostPage() {
           <span className="pilot-kicker">Host Control Room</span>
           <h1>Event Forge</h1>
           <p>
-            This is your side of the protocol. Set the beat, write the challenge, watch queues fill, and trigger each
-            phase when the event is ready to move.
+            Prepare challenges and monitor the 64-artist pilot. The worker handles judging deadlines, advancement, and the shared reveal.
           </p>
         </div>
         <div className="pilot-status">
@@ -675,7 +650,7 @@ export default function HostPage() {
           <div className="protocol-summary">
             <span>Phase: {selectedEvent.phase}</span>
             <span>Round: {selectedEvent.currentRound}</span>
-            <span>Artists registered: {selectedEvent.queuedCount}</span>
+            <span>Event entries: {selectedEvent.queuedCount}</span>
             <span>Start time (ET): {formatEastern(selectedEvent.queueClosedAt)}</span>
             <span>Submission deadline: {shortTime(selectedEvent.submissionDeadline)}</span>
             <span>Judging deadline: {shortTime(selectedEvent.judgingDeadline)}</span>
@@ -690,15 +665,15 @@ export default function HostPage() {
         <article className="pilot-panel">
           <h2>Run the protocol</h2>
           <p>
-            Once registration fills, lock entries and start the 24-hour submission window. When every active artist has
-            submitted, distribute the judging wave. After a round resolves, finalize it to move the winners forward.
+            The worker waits for every original track across all four events, then runs synchronized judging waves.
+            These controls reconcile the current state without shortening any deadline.
           </p>
           <button
             disabled={isBusy || selectedEvent.queuedCount !== 16 || selectedEvent.phase !== "queue"}
             onClick={() => void postProtocol("closeQueue", { eventId: selectedEvent.id })}
             type="button"
           >
-            Lock queue and start submission clock
+            Reconcile ready event entries
           </button>
           <button disabled={isBusy} onClick={() => void runProtocolTick()} type="button">
             Run protocol tick
@@ -715,7 +690,7 @@ export default function HostPage() {
             onClick={() => void postProtocol("finalizeRound", { eventId: selectedEvent.id })}
             type="button"
           >
-            Finalize round
+            Check elapsed round deadlines
           </button>
           <button disabled={isBusy} onClick={() => void postProtocol("reset")} type="button">
             Reset pilot
@@ -797,7 +772,7 @@ export default function HostPage() {
             ) : (
               <div className="artist-empty-state">
                 <strong>No battles generated yet</strong>
-                <span>Battles appear after registration locks.</span>
+                <span>Battles appear when event entries close.</span>
               </div>
             )}
           </div>

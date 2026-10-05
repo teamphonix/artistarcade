@@ -304,8 +304,7 @@ export default function TestRunPage() {
               <strong>{event.winner.name}</strong>
               <p>{event.winner.name} Song</p>
               <em>
-                Record {event.winner.wins}-{event.winner.losses} | Prize {money(event.prizeCents)} | Pot{" "}
-                {money(event.potCents)}
+                Record {event.winner.wins}-{event.winner.losses} | Prize {money(event.prizeCents)}
               </em>
             </article>
           ))}
@@ -315,7 +314,7 @@ export default function TestRunPage() {
       <section className="test-section">
         <div className="protocol-section-head">
           <span className="protocol-kicker">Tournament maps</span>
-          <h2>Each event follows its bracket to a winner.</h2>
+          <h2>Four events. Four rounds. A winner for each event.</h2>
         </div>
         <div className="test-bracket-stack">
           {simulation.events.map((event) => (

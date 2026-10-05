@@ -1,6 +1,8 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
+import type { SliderMap } from "./scoring";
+import { PILOT_RULES_VERSION } from "./pilotCopy";
 
 export const ARTISTS_PER_EVENT = 16;
 export const MVP_EVENT_COUNT = 4;
@@ -9,7 +11,7 @@ export const SUBMISSION_LIMIT_SECONDS = 180;
 export const SUBMISSION_WINDOW_HOURS = 24;
 export const JUDGING_WINDOW_MINUTES = 15;
 export const JUDGES_PER_BATTLE = 1;
-export const BETA_RULES_VERSION = "2026-05-07";
+export const BETA_RULES_VERSION = PILOT_RULES_VERSION;
 
 export const SCORE_CATEGORIES = [
   { key: "lyrics", label: "Lyrics", weight: 25 },
@@ -115,7 +117,7 @@ export type ProtocolJudgmentEvent = {
   tMs: number;
   type: "open" | "slider" | "lock";
   category?: ScoreKey;
-  sliders: Record<ScoreKey, number>;
+  sliders: SliderMap;
   aPct: number;
   bPct: number;
 };
@@ -127,7 +129,7 @@ export type ProtocolJudgment = {
   judgeArtistId: string;
   scores: Record<ScoreKey, number>;
   contestantScores?: Record<string, Record<ScoreKey, number>>;
-  sliders?: Record<ScoreKey, number>;
+  sliders?: SliderMap;
   events?: ProtocolJudgmentEvent[];
   selectedWinnerArtistId: string;
   createdAt: string;
@@ -154,6 +156,7 @@ export type ProtocolAuditEntry = {
 };
 
 export type ProtocolState = {
+  revision?: number;
   settings: {
     artistsPerEvent: number;
     eventCount: number;

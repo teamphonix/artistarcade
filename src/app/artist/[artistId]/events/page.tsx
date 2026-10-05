@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import TournamentRules from "@/app/components/TournamentRules";
+import { PILOT_RULES_VERSION } from "@/app/lib/pilotCopy";
 
 type Artist = {
   id: string;
@@ -124,7 +126,7 @@ export default function ArtistEventsPortalPage() {
       setPayload(data);
       setSelectedEventId("");
       setAcceptBetaRules(false);
-      setMessage("Event joined. Your profile is now locked into that queue.");
+      setMessage("Entry confirmed. Your track will compete in this event.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not join event.");
     } finally {
@@ -144,7 +146,7 @@ export default function ArtistEventsPortalPage() {
       (event) => event.eventType === selectedType && event.phase === "queue" && event.queuedCount < 16,
     ) || [];
   const selectedEvent = visibleEvents.find((event) => event.id === selectedEventId) || null;
-  const betaRulesAccepted = Boolean(artist?.betaRulesAcceptedAt);
+  const betaRulesAccepted = Boolean(artist?.betaRulesAcceptedAt && artist.betaRulesVersion === PILOT_RULES_VERSION);
 
   if (!payload || !artist) {
     return (
@@ -184,7 +186,7 @@ export default function ArtistEventsPortalPage() {
               <span>Current event</span>
               <h2>{currentEvent.title}</h2>
               <p>
-                Your entry is confirmed and this profile is locked to the queue. Open the event room to watch the
+                Your entry is confirmed. Open your event room to follow the
                 next protocol step and submit when the window goes live.
               </p>
             </div>
@@ -220,8 +222,8 @@ export default function ArtistEventsPortalPage() {
           <h2>Available events</h2>
           <p>
             {currentEvent
-              ? "You can review open queues, but beta rules allow one active event per artist profile."
-              : "Pick an event to inspect the queue. When registration fills, the system locks entries automatically, alerts artists in-app, and opens the submission window from the scheduled start time."}
+              ? "You can explore the other events. Each artist competes in one event during this pilot."
+              : "Choose your challenge in the 64-artist, four-event pilot. Your event room shows when to submit your one tournament track."}
           </p>
           <div className="artist-event-grid">
             {visibleEvents.length > 0 ? (
@@ -239,14 +241,14 @@ export default function ArtistEventsPortalPage() {
                   <span>Prize</span>
                   <strong>{money(event.desiredPrizeCents)}</strong>
                   <em>
-                    {event.title} | {event.queuedCount} registered
+                    {event.title} | Entry open
                   </em>
                 </button>
               ))
             ) : (
               <div className="artist-empty-state">
                 <strong>No open events</strong>
-                <span>That portal does not have an available queue right now.</span>
+                <span>That portal has no open events right now.</span>
               </div>
             )}
           </div>
@@ -261,7 +263,7 @@ export default function ArtistEventsPortalPage() {
               <span>Starts (ET): {easternTime(selectedEvent.queueClosedAt)}</span>
               <span>Submission deadline (ET): {easternTime(selectedEvent.submissionDeadline)}</span>
               <span>
-                Artists registered: {selectedEvent.queuedCount} | Entry {money(selectedEvent.entryFeeCents)} | Prize{" "}
+                Entry {money(selectedEvent.entryFeeCents)} | Prize{" "}
                 {money(selectedEvent.desiredPrizeCents)}
               </span>
             </div>
@@ -275,10 +277,12 @@ export default function ArtistEventsPortalPage() {
                 <li>No racist hate speech or attacks against protected communities.</li>
                 <li>No threats against countries, communities, or real-world groups.</li>
                 <li>No credible threats of violence, doxxing, or instructions for harm.</li>
-                <li>Submissions must be original, under 3 minutes, and made for the posted challenge.</li>
+                <li>Submissions must be original, no longer than 3 minutes, and made for the posted challenge.</li>
                 <li>Entry is $1 for this beta event. Prize, deadlines, judging, and results are handled by the protocol.</li>
                 <li>Judging uses Lyrics 25%, Delivery 20%, Originality 20%, Flow 15%, Impact 20%.</li>
               </ul>
+              <TournamentRules />
+              <p>Prizes are credited after the shared reveal when eligibility and funding checks pass. Bank payouts are not enabled in this beta.</p>
               <label>
                 <input
                   checked={acceptBetaRules || betaRulesAccepted}
@@ -306,7 +310,7 @@ export default function ArtistEventsPortalPage() {
         <section className="artist-dashboard-panel artist-dashboard-panel-wide">
           <h2>Create event</h2>
           <p>
-            Artist-created events are part of the full protocol, but this control is locked during beta while queue,
+            Artist-created events are planned for a later release. During this pilot, entry,
             wallet, submission, judging, and results flow are being validated.
           </p>
           <button className="artist-room-link secondary" disabled type="button">

@@ -27,8 +27,6 @@ and the ability to move the arena.
 
 Welcome to The Artist Arcade.
 
-Our upcoming beta brings 64 artists together across four events.
-
 This is more than a platform.
 It is a gateway into a new realm of competition, creation, and artistic evolution.
 
@@ -61,6 +59,11 @@ New arenas for creators bold enough to enter.
 The Artist Arcade is being built as a world where art itself becomes the battleground,
 and those with vision, discipline, and originality will have the chance to prove who they are
 through the work they create.
+
+The first pilot brings 64 artists into four events.
+Submit one original track and let it compete through every round.
+You may be chosen as a FateKeeper for another battle.
+Complete every card assigned to you, then wait for the shared final reveal.
 
 This is your invitation.
 

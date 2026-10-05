@@ -57,6 +57,7 @@ type Notification = {
 };
 
 type ProtocolPayload = {
+  tournament?: { revealed: boolean; revealAt: number } | null;
   artists: Artist[];
   events: EventSummary[];
   entries: number;
@@ -129,38 +130,54 @@ export default function ArtistDashboardPage() {
   const [message, setMessage] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [depositAmount, setDepositAmount] = useState(100);
-  const [withdrawAmount, setWithdrawAmount] = useState(100);
-
-  async function loadProtocol() {
-    const response = await fetch("/api/pilot", { cache: "no-store" });
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Could not load artist dashboard.");
-    }
-
-    setPayload(data);
-  }
-
   useEffect(() => {
     let isMounted = true;
+    let pending = false;
+    const controller = new AbortController();
+    const payment = new URLSearchParams(window.location.search).get("payment");
 
     async function start() {
+      if (pending) return;
+      pending = true;
       try {
-        await loadProtocol();
+        const response = await fetch("/api/pilot", { cache: "no-store", signal: controller.signal });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load artist dashboard.");
+        if (isMounted) setPayload(data);
       } catch (error) {
         if (isMounted) {
           setMessage(error instanceof Error ? error.message : "Could not load artist dashboard.");
         }
+      } finally {
+        pending = false;
       }
     }
 
-    void start();
+    void start().then(() => {
+      if (isMounted && payment) setMessage(payment === "success" ? "If you completed checkout, your balance updates after payment verification." : "Checkout canceled. You can return to checkout when ready.");
+    });
+    const timer = setInterval(() => void start(), 10_000);
 
     return () => {
       isMounted = false;
+      controller.abort();
+      clearInterval(timer);
     };
   }, []);
+
+  async function fundWallet(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsBusy(true); setMessage("");
+    try {
+      const response = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: payload?.artists.find(a => a.id === artistId)?.name, amountCents: depositAmount, artistId }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not open checkout.");
+      const checkout = new URL(data.url);
+      if (checkout.origin !== "https://checkout.stripe.com") throw new Error("Checkout link is invalid.");
+      window.location.assign(checkout.href);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not open checkout."); }
+    finally { setIsBusy(false); }
+  }
 
   async function postProtocol(action: string, body = {}) {
     setIsBusy(true);
@@ -259,7 +276,7 @@ export default function ArtistDashboardPage() {
             <h2>{priorityNotification?.title || "Enter the arena"}</h2>
             <p>
               {priorityNotification?.body ||
-                "Add funds, choose an open event, submit when the window opens, judge when assigned, and check results after the bracket resolves."}
+                "Choose an open event, submit one track, complete any assigned FateKeeper cards, and wait for the shared reveal."}
             </p>
           </div>
           <Link className="artist-room-link" href={priorityNotification?.actionHref || `/artist/${artist.id}/events`}>
@@ -275,7 +292,7 @@ export default function ArtistDashboardPage() {
           </article>
           <article className="artist-dashboard-card">
             <span>Status</span>
-            <strong>{artist.status}</strong>
+            <strong>{payload.tournament?.revealed ? artist.status : artistSubmission ? "Track submitted" : currentEntry ? "Entry confirmed" : "Registered"}</strong>
             <em>{currentEvent ? currentEvent.title : "No current event"}</em>
           </article>
           <article className="artist-dashboard-card">
@@ -293,16 +310,10 @@ export default function ArtistDashboardPage() {
         <section className="artist-dashboard-columns">
           <form
             className="artist-dashboard-panel"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void postProtocol("deposit", {
-                name: artist.name,
-                email: artist.email,
-                amountCents: depositAmount,
-              });
-            }}
+            onSubmit={fundWallet}
           >
-            <h2>Wallet</h2>
+            <h2>Fund your wallet</h2>
+            <p>Use secure checkout to add USD. Funds appear after payment verification.</p>
             <label>
               Add funds in cents
               <input
@@ -314,42 +325,20 @@ export default function ArtistDashboardPage() {
               />
             </label>
             <button disabled={isBusy} type="submit">
-              Add wallet funds
-            </button>
-          </form>
-
-          <form
-            className="artist-dashboard-panel"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void postProtocol("withdraw", {
-                artistId: artist.id,
-                amountCents: withdrawAmount,
-              });
-            }}
-          >
-            <h2>Withdraw</h2>
-            <p>Beta ledger withdrawal. This reduces available wallet balance in the protocol state.</p>
-            <label>
-              Withdraw amount in cents
-              <input
-                min="100"
-                step="100"
-                type="number"
-                value={withdrawAmount}
-                onChange={(event) => setWithdrawAmount(Number(event.target.value))}
-              />
-            </label>
-            <button disabled={isBusy || artist.walletCents < withdrawAmount} type="submit">
-              Withdraw funds
+              Continue to secure checkout
             </button>
           </form>
 
           <article className="artist-dashboard-panel">
+            <h2>Bank withdrawals</h2>
+            <p>Bank payouts are not enabled in this beta. Your verified balance stays visible in your wallet.</p>
+            <button disabled type="button">Bank payouts coming later</button>
+          </article>
+
+          <article className="artist-dashboard-panel">
             <h2>Arena</h2>
             <p>
-              View available beta events, join one queue, and stand by until the system opens submissions. Create event
-              is visible for the product path, but locked during beta.
+              Choose an open event in the 64-artist pilot. Your event room will show your track and any FateKeeper duty.
             </p>
             <div className="artist-dashboard-event">
               <span>{currentEntry ? `${currentEvent?.title || "Current event"} is locked to your profile` : `${availableEvents.length} events open for entry`}</span>
@@ -444,7 +433,7 @@ export default function ArtistDashboardPage() {
               <span>Starts (ET): {easternTime(currentEvent.queueClosedAt)}</span>
               <span>Submission deadline: {shortTime(currentEvent.submissionDeadline)}</span>
               <span>Judging deadline: {shortTime(currentEvent.judgingDeadline)}</span>
-              <span>Artists registered: {currentEvent.queuedCount}</span>
+              <span>{currentEvent.phase === "queue" ? "Entry confirmed — awaiting the challenge" : "Entry confirmed"}</span>
               <div className="artist-dashboard-links">
                 <Link className="artist-room-link secondary" href={`/artist/${artist.id}/event`}>
                   Enter event room
@@ -455,7 +444,7 @@ export default function ArtistDashboardPage() {
               </div>
             </div>
           ) : (
-            <p>No active event yet. Join one of the open queues to enter the protocol.</p>
+            <p>No active event yet. Choose an open event to enter the arena.</p>
           )}
         </section>
       </section>

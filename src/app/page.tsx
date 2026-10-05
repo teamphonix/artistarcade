@@ -1,56 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import ArtistSignIn from "@/app/components/ArtistSignIn";
+import TournamentRules from "@/app/components/TournamentRules";
 
 const protocolSteps = [
-  ["Create profile", "Use a stage name and email to open your beta account."],
-  ["Fund wallet", "Add funds, withdraw available balance, and pay entry fees from one place."],
-  ["Enter arena", "Join one open event. When its entry roster is full, registration locks automatically."],
-  ["Submit and judge", "Artists get 24 hours from event start to submit, then judging assignments open."],
+  ["Claim your identity", "Verify your email and choose your stage name."],
+  ["Enter the arena", "Join one of four events in the 64-artist pilot. Entry opens your challenge and submission deadline."],
+  ["One track. One journey.", "Submit your original track once. That same track competes all the way to the final."],
+  ["Keep their fate", "Complete each FateKeeper card assigned to you, then stay available until the shared reveal."],
 ];
 
 export default function Home() {
-  const router = useRouter();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
-  const [isBusy, setIsBusy] = useState(false);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setIsBusy(true);
-    setMessage("");
-
-    try {
-      const response = await fetch("/api/pilot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "upsertArtist",
-          name,
-          email,
-        }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Could not open profile.");
-      }
-
-      const artist = (data.artists || []).find((entry: { email: string; id: string }) => entry.email === email.toLowerCase());
-      if (!artist) {
-        throw new Error("Profile was saved, but could not be loaded.");
-      }
-
-      router.push(`/artist/${artist.id}`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not open profile.");
-    } finally {
-      setIsBusy(false);
-    }
-  }
 
   return (
     <main className="protocol-page">
@@ -70,29 +31,18 @@ export default function Home() {
       <section className="protocol-hero">
         <div className="protocol-copy">
           <span className="protocol-kicker">Beta protocol</span>
-          <h1>64 artists. Four events. One stage for your track.</h1>
+          <h1>64 artists. Four events. One track to victory.</h1>
           <p>
-            Artist Arcade is preparing a 64-artist beta across four events: profiles, wallets, registration, submissions,
-            judging assignments, and results. The product should stay clean until the system is solid.
+            Bring your track into the arena. While it competes, you may be chosen as a FateKeeper for other battles.
+            Their fate is in your hands. Your own result stays sealed until the final reveal.
           </p>
         </div>
 
-        <form className="protocol-entry-card" onSubmit={handleSubmit}>
-          <span className="protocol-kicker">Start here</span>
-          <h2>Sign in or create profile</h2>
-          <label>
-            Stage name
-            <input value={name} onChange={(event) => setName(event.target.value)} />
-          </label>
-          <label>
-            Email
-            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-          </label>
-          <button disabled={isBusy} type="submit">
-            {isBusy ? "Opening profile..." : "Continue to wallet"}
-          </button>
-          {message ? <p className="protocol-message">{message}</p> : null}
-        </form>
+        <div className="protocol-entry-card"><h2>Enter the Artist Arcade beta</h2><ArtistSignIn /></div>
+      </section>
+      <section className="protocol-section">
+        <div className="protocol-section-head"><h2>Your path to the reveal</h2></div>
+        <TournamentRules />
       </section>
 
       <section className="protocol-section">
