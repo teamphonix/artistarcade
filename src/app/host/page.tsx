@@ -675,7 +675,7 @@ export default function HostPage() {
           <div className="protocol-summary">
             <span>Phase: {selectedEvent.phase}</span>
             <span>Round: {selectedEvent.currentRound}</span>
-            <span>Queue: {selectedEvent.queuedCount}/16</span>
+            <span>Artists registered: {selectedEvent.queuedCount}</span>
             <span>Start time (ET): {formatEastern(selectedEvent.queueClosedAt)}</span>
             <span>Submission deadline: {shortTime(selectedEvent.submissionDeadline)}</span>
             <span>Judging deadline: {shortTime(selectedEvent.judgingDeadline)}</span>
@@ -690,7 +690,7 @@ export default function HostPage() {
         <article className="pilot-panel">
           <h2>Run the protocol</h2>
           <p>
-            Once the queue hits 16, lock it and start the 24-hour submission window. When every active artist has
+            Once registration fills, lock entries and start the 24-hour submission window. When every active artist has
             submitted, distribute the judging wave. After a round resolves, finalize it to move the winners forward.
           </p>
           <button
@@ -797,7 +797,7 @@ export default function HostPage() {
             ) : (
               <div className="artist-empty-state">
                 <strong>No battles generated yet</strong>
-                <span>Battles appear after the 16-artist queue locks.</span>
+                <span>Battles appear after registration locks.</span>
               </div>
             )}
           </div>

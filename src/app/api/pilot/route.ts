@@ -468,7 +468,7 @@ function buildNotifications(state: ProtocolState) {
           eventId: event.id,
           level: "info",
           title: "Entry confirmed",
-          body: `${event.title} has your $1 entry. The queue is ${entries.length}/16. Your event room will show the next live step when the protocol opens it.`,
+          body: `${event.title} has your $1 entry. You are registered for this event. Your event room will show the next live step when the protocol opens it.`,
           actionHref: `/artist/${artist.id}/event`,
           createdAt: entry.joinedAt,
         });
@@ -635,7 +635,7 @@ function buildBetaReadiness(state: ProtocolState) {
       id: "dry-run",
       label: "End-to-end dry run",
       status: completedDryRun ? "ready" : "warning",
-      detail: completedDryRun ? "At least one event completed with a prize ledger." : "Run one complete 16-artist production-style test before invites.",
+      detail: completedDryRun ? "At least one event completed with a prize ledger." : "Run one complete event rehearsal before invites.",
     },
   ] as const;
   const blocked = checks.filter((check) => check.status === "blocked").length;
@@ -1423,7 +1423,7 @@ export async function POST(request: Request) {
       }
 
       if (eventEntries.length >= ARTISTS_PER_EVENT) {
-        return NextResponse.json({ error: "This event already has 16 artists." }, { status: 409 });
+        return NextResponse.json({ error: "Registration for this event is full." }, { status: 409 });
       }
 
       if (state.entries.some((entry) => entry.artistId === artistId)) {
@@ -1482,7 +1482,7 @@ export async function POST(request: Request) {
     if (action === "closeQueue") {
       const eventId = String(body?.eventId || "");
       if (!lockEventQueue(state, eventId)) {
-        return NextResponse.json({ error: "Queue needs exactly 16 artists before it closes." }, { status: 409 });
+        return NextResponse.json({ error: "Registration must be full before entries close." }, { status: 409 });
       }
     }
 

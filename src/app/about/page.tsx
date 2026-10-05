@@ -27,6 +27,8 @@ and the ability to move the arena.
 
 Welcome to The Artist Arcade.
 
+Our upcoming beta brings 64 artists together across four events.
+
 This is more than a platform.
 It is a gateway into a new realm of competition, creation, and artistic evolution.
 

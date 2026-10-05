@@ -85,7 +85,7 @@ const scoreCategories = [
   { key: "impact", label: "Impact", weight: 20 },
 ];
 const roundLabels: Record<number, string> = {
-  1: "Round of 16",
+  1: "Opening round",
   2: "Quarterfinals",
   3: "Semifinals",
   4: "Final",
@@ -315,7 +315,7 @@ export default function TestRunPage() {
       <section className="test-section">
         <div className="protocol-section-head">
           <span className="protocol-kicker">Tournament maps</span>
-          <h2>Each arena path from 16 artists to the winner.</h2>
+          <h2>Each event follows its bracket to a winner.</h2>
         </div>
         <div className="test-bracket-stack">
           {simulation.events.map((event) => (

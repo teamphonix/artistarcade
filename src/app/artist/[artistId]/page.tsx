@@ -444,7 +444,7 @@ export default function ArtistDashboardPage() {
               <span>Starts (ET): {easternTime(currentEvent.queueClosedAt)}</span>
               <span>Submission deadline: {shortTime(currentEvent.submissionDeadline)}</span>
               <span>Judging deadline: {shortTime(currentEvent.judgingDeadline)}</span>
-              <span>Queue count: {currentEvent.queuedCount}/16</span>
+              <span>Artists registered: {currentEvent.queuedCount}</span>
               <div className="artist-dashboard-links">
                 <Link className="artist-room-link secondary" href={`/artist/${artist.id}/event`}>
                   Enter event room

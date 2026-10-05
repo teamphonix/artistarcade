@@ -22,7 +22,7 @@ export default function ChallengesPage() {
       <header className="challenge-header">
         <ArtistArcadeCrest compact />
         <h1>CHALLENGES</h1>
-        <p>PROVE YOU HAVE WHAT IT TAKES.</p>
+        <p>64 ARTISTS. FOUR EVENTS. PROVE YOU HAVE WHAT IT TAKES.</p>
       </header>
 
       <section className="native-challenge-grid" aria-label="Challenge types">
